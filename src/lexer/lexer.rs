@@ -1,4 +1,5 @@
-use super::token::*;
+use crate::lexer::report::*;
+use crate::lexer::token::*;
 
 pub struct Lexer<'a> {
     source: &'a str,
@@ -191,6 +192,7 @@ impl<'a> Lexer<'a> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
+                self.line_start += 1;
             }
             self.advance();
         }
@@ -241,7 +243,23 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let value: f64 = self.source[self.start..self.current].parse().unwrap();
+        let value: f64 = match self.source[self.start..self.current].parse() {
+            Ok(v) => v,
+            Err(_) => {
+                self.diagnostics.push(Diagnostic::new(
+                    DiagnosticKind::Error,
+                    format!("[line {}] Error: Invalid number format.", self.line),
+                    Span {
+                        start: self.start,
+                        end: self.current,
+                        line: self.line,
+                        column: self.start - self.line_start,
+                    },
+                ));
+                return;
+            }
+        };
+
         self.add_token(TokenType::Number, LiteralType::Number(value));
     }
 

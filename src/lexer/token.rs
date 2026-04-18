@@ -1,3 +1,5 @@
+use crate::lexer::report::Span;
+
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -109,47 +111,4 @@ impl<'a> fmt::Display for Token<'a> {
             self.token_type, self.lexeme, self.literal, self.span
         )
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct Diagnostic {
-    pub kind: DiagnosticKind, // Error, Warning, Note.
-    pub message: String,
-    pub span: Span, // Range in source code.
-}
-
-impl Diagnostic {
-    pub fn new(kind: DiagnosticKind, message: String, span: Span) -> Self {
-        Self {
-            kind,
-            message,
-            span,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Span {
-    pub start: usize,
-    pub end: usize,
-    pub line: usize,
-    pub column: usize,
-}
-
-impl Span {
-    pub fn new(start: usize, end: usize, line: usize, column: usize) -> Self {
-        Self {
-            start,
-            end,
-            line,
-            column,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum DiagnosticKind {
-    Error,
-    Warning,
-    Note,
 }
