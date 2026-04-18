@@ -23,7 +23,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn lex(&mut self) -> &Vec<Token<'a>> {
+    pub fn lex(&mut self) -> Vec<Token<'a>> {
         while !self.is_at_end() {
             // This is the beginning of the next lexeme.
             self.start = self.current;
@@ -43,7 +43,7 @@ impl<'a> Lexer<'a> {
             },
         ));
 
-        &self.tokens
+        std::mem::take(&mut self.tokens)
     }
 
     fn scan_token(&mut self) {
@@ -117,16 +117,16 @@ impl<'a> Lexer<'a> {
                 } else if self.is_alpha(c) {
                     self.identifier();
                 } else {
-                    self.diagnostics.push(Diagnostic {
-                        kind: DiagnosticKind::Error,
-                        message: format!("Unexpected character: '{}'", c),
-                        span: Span {
+                    self.diagnostics.push(Diagnostic::new(
+                        DiagnosticKind::Error,
+                        format!("Unexpected character: '{}'", c),
+                        Span {
                             start: self.start,
                             end: self.current,
                             line: self.line,
                             column: self.start - self.line_start,
                         },
-                    });
+                    ));
                 }
             }
         }
@@ -138,7 +138,10 @@ impl<'a> Lexer<'a> {
 
     fn advance(&mut self) -> char {
         let c = self.peek();
-        self.current += 1;
+        if c != '\0' {
+            // Increment current by exact char size that allocated in memory.
+            self.current += c.len_utf8();
+        }
         c
     }
 
@@ -163,7 +166,7 @@ impl<'a> Lexer<'a> {
         if self.peek() as char != expected {
             return false;
         }
-        self.current += 1;
+        self.current += expected.len_utf8();
         true
     }
 
@@ -171,14 +174,17 @@ impl<'a> Lexer<'a> {
         if self.is_at_end() {
             return '\0';
         }
-        self.source.as_bytes()[self.current] as char
+        self.source[self.current..].chars().next().unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {
         if self.current + 1 >= self.source.len() {
             return '\0';
         }
-        self.source.as_bytes()[self.current + 1] as char
+
+        let mut chars = self.source[self.current..].chars();
+        chars.next(); // Skip the first char (current).
+        chars.next().unwrap_or('\0') // Take second.
     }
 
     fn string(&mut self) {
@@ -190,16 +196,16 @@ impl<'a> Lexer<'a> {
         }
 
         if self.is_at_end() {
-            self.diagnostics.push(Diagnostic {
-                kind: DiagnosticKind::Error,
-                message: format!("[line {}] Error: Unterminated string.", self.line),
-                span: Span {
+            self.diagnostics.push(Diagnostic::new(
+                DiagnosticKind::Error,
+                format!("[line {}] Error: Unterminated string.", self.line),
+                Span {
                     start: self.start,
                     end: self.current,
                     line: self.line,
                     column: self.start - self.line_start,
                 },
-            });
+            ));
 
             return;
         }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
     // Single character tokens.
     Comma,
@@ -74,7 +74,7 @@ pub fn get_keyword_token(text: &str) -> Option<TokenType> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum LiteralType {
     Number(f64),
     String(String),
@@ -82,7 +82,7 @@ pub enum LiteralType {
     None,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
@@ -105,25 +105,46 @@ impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:?} {} {:?}",
-            self.token_type, self.lexeme, self.literal
+            "{:?} {} {:?} {:?}",
+            self.token_type, self.lexeme, self.literal, self.span
         )
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Diagnostic {
     pub kind: DiagnosticKind, // Error, Warning, Note.
     pub message: String,
     pub span: Span, // Range in source code.
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl Diagnostic {
+    pub fn new(kind: DiagnosticKind, message: String, span: Span) -> Self {
+        Self {
+            kind,
+            message,
+            span,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
     pub line: usize,
     pub column: usize,
+}
+
+impl Span {
+    pub fn new(start: usize, end: usize, line: usize, column: usize) -> Self {
+        Self {
+            start,
+            end,
+            line,
+            column,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

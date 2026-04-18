@@ -67,4 +67,10 @@ fn run(source: &str) {
     for token in tokens {
         println!("{:?}", token);
     }
+
+    if !lexer.diagnostics.is_empty() {
+        for diagnostic in lexer.diagnostics {
+            println!("Diagnostic: {:?}", diagnostic);
+        }
+    }
 }
