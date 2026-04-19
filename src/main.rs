@@ -3,10 +3,13 @@ use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
+mod error;
+mod interpreter;
 mod lexer;
 mod parser;
+use crate::error::report::report_diagnostics;
+use crate::interpreter::interpreter::Interpreter;
 use crate::lexer::lexer::Lexer;
-use crate::lexer::report::report_diagnostics;
 use crate::parser::expr::Expr;
 use crate::parser::parser::Parser;
 
@@ -88,7 +91,12 @@ pub fn print_expr(expr: &Expr) -> String {
 /// For file instructions.
 fn run_file(path: &str) -> io::Result<()> {
     let contents = fs::read_to_string(path)?;
-    run(&contents);
+
+    // Eğer run() bize bir hata kodu (örn: 65 veya 70) döndürdüyse:
+    if let Err(exit_code) = run(&contents) {
+        exit(exit_code);
+    }
+
     Ok(())
 }
 
@@ -98,9 +106,7 @@ fn run_prompt() -> io::Result<()> {
 
     loop {
         print!("> ");
-        // Do not wait for user interactive.
         io::stdout().flush()?;
-        // Clear buffer data for memory efficiency.
         buffer.clear();
 
         let bytes_read = io::stdin().read_line(&mut buffer)?;
@@ -114,13 +120,15 @@ fn run_prompt() -> io::Result<()> {
             continue;
         }
 
-        run(buffer.trim());
+        // REPL modundayız. Hata olsa bile görmezden gel, exit() ÇAĞIRMA.
+        // Kullanıcı yeni bir satır yazabilsin diye çalışmaya devam ediyoruz.
+        let _ = run(buffer.trim());
     }
 
     Ok(())
 }
 
-fn run(source: &str) {
+fn run(source: &str) -> Result<(), i32> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.lex();
 
@@ -129,17 +137,23 @@ fn run(source: &str) {
 
     if !lexer.diagnostics.is_empty() || !parser.diagnostics.is_empty() {
         report_diagnostics(&source, &[lexer.diagnostics, parser.diagnostics].concat());
-    } else {
-        if let Some(expr) = expression {
-            println!("{}", print_ast(&expr));
-        }
+        return Err(65);
     }
 
-    // if !lexer.diagnostics.is_empty() {
-    //     report_diagnostics(&source, &lexer.diagnostics);
-    // } else {
-    //     for token in tokens {
-    //         println!("{:?}", token);
-    //     }
-    // }
+    if let Some(expr) = &expression {
+        println!("AST: {}", print_ast(&expr));
+
+        let mut interpreter = Interpreter::new();
+
+        match interpreter.evaluate(&expr) {
+            Ok(value) => {
+                println!("{}", value);
+            }
+            Err(diagnostic) => {
+                report_diagnostics(source, &[diagnostic]);
+                return Err(70);
+            }
+        }
+    }
+    Ok(())
 }

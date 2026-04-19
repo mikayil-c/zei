@@ -1,4 +1,4 @@
-use crate::lexer::report::Span;
+use crate::error::report::Span;
 
 use std::fmt;
 

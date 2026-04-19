@@ -1,4 +1,4 @@
-use crate::lexer::report::*;
+use crate::error::report::*;
 use crate::lexer::token::*;
 use crate::parser::expr::*;
 
