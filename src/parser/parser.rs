@@ -9,6 +9,8 @@ pub struct Parser<'a> {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+// Parser has a structure that pushes errors to the top
+// and continues from the next most logical part.
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token<'a>>) -> Self {
         Self {
@@ -18,11 +20,66 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Option<Expr<'a>> {
-        match self.expression() {
-            Ok(v) => Some(v),
-            Err(_) => None,
+    pub fn parse(&mut self) -> Vec<Stmt<'a>> {
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() {
+            match self.declaration() {
+                Ok(stmt) => statements.push(stmt),
+                Err(_) => {
+                    self.synchronize();
+                }
+            }
         }
+
+        statements
+    }
+
+    fn declaration(&mut self) -> Result<Stmt<'a>, ParseError> {
+        if self.match_token(&[TokenType::Var]) {
+            return Ok(self.var_declaration()?);
+        }
+        Ok(self.statement()?)
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt<'a>, ParseError> {
+        let name = self
+            .consume(TokenType::Identifier, "Expect variable name.")?
+            .clone();
+        let mut initializer = Expr::Literal {
+            value: LiteralType::None,
+        };
+
+        if self.match_token(&[TokenType::Equal]) {
+            initializer = self.expression()?;
+        }
+        self.consume(
+            TokenType::Semicolon,
+            "Except ';' after variable declaration",
+        )?;
+        Ok(Stmt::Var {
+            name: name,
+            initializer: initializer,
+        })
+    }
+
+    fn statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        if self.match_token(&[TokenType::Print]) {
+            return self.print_statement();
+        }
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        Ok(Stmt::Print { expression: expr })
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        Ok(Stmt::Expression { expression: expr })
     }
 
     fn expression(&mut self) -> Result<Expr<'a>, ParseError> {
@@ -137,6 +194,12 @@ impl<'a> Parser<'a> {
             });
         }
 
+        if self.match_token(&[TokenType::Identifier]) {
+            return Ok(Expr::Variable {
+                name: self.previous().clone(),
+            });
+        }
+
         if self.match_token(&[TokenType::LeftParen]) {
             let expr = self.expression();
 
@@ -151,6 +214,17 @@ impl<'a> Parser<'a> {
         Err(self.error(&token, "Expect expression."))
     }
 
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<&Token<'a>, ParseError> {
+        if self.check(token_type) {
+            return Ok(self.advance());
+        }
+
+        let token = self.peek().clone();
+        Err(self.error(&token, message))
+    }
+
+    // This section is just a function written to call the stack.
+    // The `ParseError` struct is empty.
     fn error(&mut self, token: &Token<'a>, message: &str) -> ParseError {
         let formatted_message = match token.token_type {
             TokenType::Eof => format!("Error at end: {}", message),
@@ -166,20 +240,17 @@ impl<'a> Parser<'a> {
         ParseError
     }
 
-    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<&Token<'a>, ParseError> {
-        if self.check(token_type) {
-            return Ok(self.advance());
-        }
-
-        let token = self.peek().clone();
-        Err(self.error(&token, message))
-    }
-
     fn synchronize(&mut self) {
         self.advance();
 
         loop {
             if self.is_at_end() {
+                return;
+            }
+
+            // If the previous token is ‘;’, that means we are already
+            // at the beginning of a new expression.
+            if self.previous().token_type == TokenType::Semicolon {
                 return;
             }
 

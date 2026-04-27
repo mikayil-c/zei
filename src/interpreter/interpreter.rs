@@ -1,7 +1,7 @@
 use crate::error::report::*;
 use crate::interpreter::value::{self, Value};
 use crate::lexer::token::TokenType;
-use crate::parser::expr::Expr;
+use crate::parser::expr::{Expr, Stmt};
 
 pub struct Interpreter {}
 
@@ -10,15 +10,45 @@ impl Interpreter {
         Self {}
     }
 
-    pub fn interpret(&mut self, expression: &Expr, source: &str) {
-        match self.evaluate(expression) {
-            Ok(value) => {
+    pub fn interpret(&mut self, statements: &Vec<Stmt>, source: &str) {
+        for stmt in statements {
+            match self.execute(&stmt) {
+                Ok(_) => (),
+                Err(diagnostic) => {
+                    report_diagnostics(source, &[diagnostic]);
+                }
+            }
+        }
+    }
+
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), Diagnostic> {
+        match stmt {
+            Stmt::Expression { expression } => {
+                self.evaluate(&expression)?;
+                Ok(())
+            }
+            Stmt::Print { expression } => {
+                let value = self.evaluate(expression)?;
                 println!("{}", value);
+                Ok(())
             }
-            Err(diagnostic) => {
-                report_diagnostics(source, &[diagnostic]);
+            Stmt::Var { name, initializer } => todo!(),
+        }
+    }
+
+    fn visit_stmt(&mut self, stmt: Stmt) {
+        match stmt {
+            Stmt::Expression { expression } => {
+                self.evaluate(&expression);
             }
-        };
+            Stmt::Print { expression } => {
+                let value = self.evaluate(&expression);
+
+                println!("{}", value.unwrap());
+                return;
+            }
+            Stmt::Var { name, initializer } => todo!(),
+        }
     }
 
     pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, Diagnostic> {
@@ -169,6 +199,7 @@ impl Interpreter {
                     }),
                 }
             }
+            Expr::Variable { name } => todo!(),
         }
     }
 }

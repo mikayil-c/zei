@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
+mod environment;
 mod error;
 mod interpreter;
 mod lexer;
@@ -133,27 +134,28 @@ fn run(source: &str) -> Result<(), i32> {
     let tokens = lexer.lex();
 
     let mut parser = Parser::new(&tokens);
-    let expression = parser.parse();
+    let statements = parser.parse();
 
     if !lexer.diagnostics.is_empty() || !parser.diagnostics.is_empty() {
         report_diagnostics(&source, &[lexer.diagnostics, parser.diagnostics].concat());
         return Err(65);
     }
 
-    if let Some(expr) = &expression {
-        println!("AST: {}", print_ast(&expr));
+    let mut interpreter = Interpreter::new();
 
-        let mut interpreter = Interpreter::new();
+    interpreter.interpret(&statements, source);
 
-        match interpreter.evaluate(&expr) {
-            Ok(value) => {
-                println!("{}", value);
-            }
-            Err(diagnostic) => {
-                report_diagnostics(source, &[diagnostic]);
-                return Err(70);
-            }
-        }
-    }
+    // if let statements = &expression {
+
+    // match interpreter.evaluate() {
+    //     Ok(value) => {
+    //         println!("{}", value);
+    //     }
+    //     Err(diagnostic) => {
+    //         report_diagnostics(source, &[diagnostic]);
+    //         return Err(70);
+    //     }
+    // }
+    // }
     Ok(())
 }

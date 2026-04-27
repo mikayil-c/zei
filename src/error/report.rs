@@ -15,12 +15,20 @@ impl Diagnostic {
     }
 }
 
+// Holding information about where exactly is a Token.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
     pub line: usize,
     pub column: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DiagnosticKind {
+    Error,
+    Warning,
+    Note,
 }
 
 impl Span {
@@ -32,13 +40,6 @@ impl Span {
             column,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum DiagnosticKind {
-    Error,
-    Warning,
-    Note,
 }
 
 #[derive(Clone, Debug)]
