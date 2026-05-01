@@ -1,2 +1,2 @@
-pub mod expr;
+pub mod models;
 pub mod parser;

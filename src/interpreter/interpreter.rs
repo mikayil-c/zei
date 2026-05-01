@@ -1,15 +1,21 @@
+use crate::environment::environment::Environment;
 use crate::error::report::*;
-use crate::interpreter::value::{self, Value};
-use crate::lexer::token::TokenType;
-use crate::parser::expr::{Expr, Stmt};
+use crate::interpreter::value::Value;
+use crate::lexer::models::TokenType;
+use crate::parser::models::{Expr, Stmt};
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    environment: Environment,
+}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            environment: Environment::new(),
+        }
     }
 
+    // Execute each statement independently so one runtime error does not stop the rest.
     pub fn interpret(&mut self, statements: &Vec<Stmt>, source: &str) {
         for stmt in statements {
             match self.execute(&stmt) {
@@ -21,6 +27,7 @@ impl Interpreter {
         }
     }
 
+    // Statements produce side effects; expressions are evaluated for their values.
     fn execute(&mut self, stmt: &Stmt) -> Result<(), Diagnostic> {
         match stmt {
             Stmt::Expression { expression } => {
@@ -32,25 +39,33 @@ impl Interpreter {
                 println!("{}", value);
                 Ok(())
             }
-            Stmt::Var { name, initializer } => todo!(),
+            Stmt::Var { name, initializer } => {
+                let value = self.evaluate(initializer)?;
+
+                self.environment.define(name.lexeme.to_string(), value);
+                Ok(())
+            }
+            Stmt::Block { statements } => {
+                let block_env = Environment::new_with_enclosing(self.environment.clone());
+                self.execute_block(statements, block_env)
+            }
         }
     }
 
-    fn visit_stmt(&mut self, stmt: Stmt) {
-        match stmt {
-            Stmt::Expression { expression } => {
-                self.evaluate(&expression);
-            }
-            Stmt::Print { expression } => {
-                let value = self.evaluate(&expression);
+    fn execute_block(
+        &mut self,
+        statements: &[Stmt],
+        environment: Environment,
+    ) -> Result<(), Diagnostic> {
+        let previous = std::mem::replace(&mut self.environment, environment);
 
-                println!("{}", value.unwrap());
-                return;
-            }
-            Stmt::Var { name, initializer } => todo!(),
-        }
+        let result = statements.iter().try_for_each(|stmt| self.execute(stmt));
+
+        self.environment = previous;
+        result
     }
 
+    // Evaluate an expression node into a runtime value.
     pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, Diagnostic> {
         match expr {
             Expr::Literal { value } => Ok(value.clone().into()),
@@ -199,7 +214,12 @@ impl Interpreter {
                     }),
                 }
             }
-            Expr::Variable { name } => todo!(),
+            Expr::Variable { name } => self.environment.get(name),
+            Expr::Assign { name, value: _ } => {
+                let value = self.evaluate(expr)?;
+                self.environment.assign(name, value.clone())?;
+                Ok(value)
+            }
         }
     }
 }

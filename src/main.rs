@@ -11,38 +11,37 @@ mod parser;
 use crate::error::report::report_diagnostics;
 use crate::interpreter::interpreter::Interpreter;
 use crate::lexer::lexer::Lexer;
-use crate::parser::expr::Expr;
 use crate::parser::parser::Parser;
 
-pub fn print_ast(expr: &Expr) -> String {
-    match expr {
-        Expr::Binary {
-            left,
-            operator,
-            right,
-        } => parenthesize(&operator.lexeme, &[left, right]),
-        Expr::Grouping { expression } => parenthesize("group", &[expression]),
-        Expr::Literal { value } => {
-            format!("{:?}", value)
-        }
-        Expr::Unary { operator, right } => parenthesize(&operator.lexeme, &[right]),
-    }
-}
+// pub fn print_ast(expr: &Expr) -> String {
+//     match expr {
+//         Expr::Binary {
+//             left,
+//             operator,
+//             right,
+//         } => parenthesize(&operator.lexeme, &[left, right]),
+//         Expr::Grouping { expression } => parenthesize("group", &[expression]),
+//         Expr::Literal { value } => {
+//             format!("{:?}", value)
+//         }
+//         Expr::Unary { operator, right } => parenthesize(&operator.lexeme, &[right]),
+//     }
+// }
 
-fn parenthesize(name: &str, exprs: &[&Box<Expr>]) -> String {
-    let mut builder = String::new();
+// fn parenthesize(name: &str, exprs: &[&Box<Expr>]) -> String {
+//     let mut builder = String::new();
 
-    builder.push('(');
-    builder.push_str(name);
-    for expr in exprs {
-        builder.push(' ');
-        // Özyinelemeli (recursive) olarak alt dalları yazdır
-        builder.push_str(&print_ast(expr));
-    }
-    builder.push(')');
+//     builder.push('(');
+//     builder.push_str(name);
+//     for expr in exprs {
+//         builder.push(' ');
+//         // Print child nodes recursively so nested expressions stay readable.
+//         builder.push_str(&print_ast(expr));
+//     }
+//     builder.push(')');
 
-    builder
-}
+//     builder
+// }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -63,47 +62,51 @@ fn main() {
     }
 }
 
-pub fn print_expr(expr: &Expr) -> String {
-    match expr {
-        Expr::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            format!(
-                "({} {} {})",
-                operator.lexeme,
-                print_expr(left),
-                print_expr(right)
-            )
-        }
-        Expr::Grouping { expression } => {
-            format!("(group {})", print_expr(expression))
-        }
-        Expr::Literal { value } => {
-            format!("{:?}", value)
-        }
-        Expr::Unary { operator, right } => {
-            format!("({} {})", operator.lexeme, print_expr(right))
-        }
-    }
-}
+// pub fn print_expr(expr: &Expr) -> String {
+//     match expr {
+//         Expr::Binary {
+//             left,
+//             operator,
+//             right,
+//         } => {
+//             format!(
+//                 "({} {} {})",
+//                 operator.lexeme,
+//                 print_expr(left),
+//                 print_expr(right)
+//             )
+//         }
+//         Expr::Grouping { expression } => {
+//             format!("(group {})", print_expr(expression))
+//         }
+//         Expr::Literal { value } => {
+//             format!("{:?}", value)
+//         }
+//         Expr::Unary { operator, right } => {
+//             format!("({} {})", operator.lexeme, print_expr(right))
+//         }
+//     }
+// }
 
-/// For file instructions.
+/// Run a source file through the lexer, parser, and interpreter.
 fn run_file(path: &str) -> io::Result<()> {
     let contents = fs::read_to_string(path)?;
 
-    // Eğer run() bize bir hata kodu (örn: 65 veya 70) döndürdüyse:
-    if let Err(exit_code) = run(&contents) {
+    let mut interpreter = Interpreter::new();
+
+    // Propagate the process exit code returned by the language pipeline.
+    if let Err(exit_code) = run(&contents, &mut interpreter) {
         exit(exit_code);
     }
 
     Ok(())
 }
 
-/// For line instructions.
+/// Run the interactive REPL loop.
 fn run_prompt() -> io::Result<()> {
     let mut buffer = String::new();
+
+    let mut interpreter = Interpreter::new();
 
     loop {
         print!("> ");
@@ -121,15 +124,14 @@ fn run_prompt() -> io::Result<()> {
             continue;
         }
 
-        // REPL modundayız. Hata olsa bile görmezden gel, exit() ÇAĞIRMA.
-        // Kullanıcı yeni bir satır yazabilsin diye çalışmaya devam ediyoruz.
-        let _ = run(buffer.trim());
+        // Keep the REPL alive after an error so the next line can still be entered.
+        let _ = run(buffer.trim(), &mut interpreter);
     }
 
     Ok(())
 }
 
-fn run(source: &str) -> Result<(), i32> {
+fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), i32> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.lex();
 
@@ -141,9 +143,7 @@ fn run(source: &str) -> Result<(), i32> {
         return Err(65);
     }
 
-    let mut interpreter = Interpreter::new();
-
-    interpreter.interpret(&statements, source);
+    interpreter.interpret(&statements, &source);
 
     // if let statements = &expression {
 

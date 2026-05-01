@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::lexer::token::LiteralType;
+use crate::lexer::models::LiteralType;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {

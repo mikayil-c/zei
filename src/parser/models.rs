@@ -1,7 +1,12 @@
-use crate::lexer::token::{LiteralType, Token};
+use crate::lexer::models::{LiteralType, Token};
 
 #[derive(Clone, Debug)]
 pub enum Expr<'a> {
+    Assign {
+        name: Token<'a>,
+        value: Box<Expr<'a>>,
+    },
+
     Binary {
         left: Box<Expr<'a>>,
         operator: Token<'a>,
@@ -27,6 +32,9 @@ pub enum Expr<'a> {
 
 #[derive(Clone, Debug)]
 pub enum Stmt<'a> {
+    Block {
+        statements: Vec<Stmt<'a>>,
+    },
     Expression {
         expression: Expr<'a>,
     },

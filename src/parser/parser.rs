@@ -1,6 +1,6 @@
 use crate::error::report::*;
-use crate::lexer::token::*;
-use crate::parser::expr::*;
+use crate::lexer::models::*;
+use crate::parser::models::*;
 
 #[derive(Clone, Debug)]
 pub struct Parser<'a> {
@@ -9,8 +9,8 @@ pub struct Parser<'a> {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-// Parser has a structure that pushes errors to the top
-// and continues from the next most logical part.
+// Recursive-descent parser with panic-mode recovery.
+// It reports syntax errors, then skips ahead to the next likely statement boundary.
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token<'a>>) -> Self {
         Self {
@@ -67,23 +67,61 @@ impl<'a> Parser<'a> {
         if self.match_token(&[TokenType::Print]) {
             return self.print_statement();
         }
+
+        if self.match_token(&[TokenType::LeftBrace]) {
+            return Ok(Stmt::Block {
+                statements: self.block()?,
+            });
+        }
+
         self.expression_statement()
     }
 
     fn print_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::Print { expression: expr })
     }
 
     fn expression_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::Expression { expression: expr })
     }
 
+    fn block(&mut self) -> Result<Vec<Stmt<'a>>, ParseError> {
+        let mut statements: Vec<Stmt> = vec![];
+
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            let stmt = self.declaration()?;
+            statements.push(stmt);
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after block.");
+        Ok(statements)
+    }
+
     fn expression(&mut self) -> Result<Expr<'a>, ParseError> {
-        self.equality()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Expr<'a>, ParseError> {
+        let expr = self.equality()?;
+
+        if self.match_token(&[TokenType::Equal]) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            if let Expr::Variable { name } = expr {
+                return Ok(Expr::Assign {
+                    name: name.clone(),
+                    value: Box::new(value),
+                });
+            } else {
+                return Err(self.error(&equals, "Invalid assignment target."));
+            }
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr<'a>, ParseError> {
@@ -167,6 +205,7 @@ impl<'a> Parser<'a> {
         Ok(self.primary()?)
     }
 
+    // Primary expressions are the leaf nodes of the grammar.
     fn primary(&mut self) -> Result<Expr<'a>, ParseError> {
         if self.match_token(&[TokenType::False]) {
             return Ok(Expr::Literal {
@@ -220,11 +259,11 @@ impl<'a> Parser<'a> {
         }
 
         let token = self.peek().clone();
+        // Missing required syntax becomes a diagnostic at the current token.
         Err(self.error(&token, message))
     }
 
-    // This section is just a function written to call the stack.
-    // The `ParseError` struct is empty.
+    // Record a syntax error and return a lightweight marker for unwinding.
     fn error(&mut self, token: &Token<'a>, message: &str) -> ParseError {
         let formatted_message = match token.token_type {
             TokenType::Eof => format!("Error at end: {}", message),
@@ -248,8 +287,7 @@ impl<'a> Parser<'a> {
                 return;
             }
 
-            // If the previous token is ‘;’, that means we are already
-            // at the beginning of a new expression.
+            // A semicolon usually means the parser has reached the end of a broken statement.
             if self.previous().token_type == TokenType::Semicolon {
                 return;
             }

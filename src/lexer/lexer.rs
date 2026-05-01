@@ -1,5 +1,5 @@
 use crate::error::report::*;
-use crate::lexer::token::*;
+use crate::lexer::models::*;
 
 pub struct Lexer<'a> {
     source: &'a str,
@@ -7,8 +7,8 @@ pub struct Lexer<'a> {
     start: usize,
     current: usize,
     line: usize,
-    pub diagnostics: Vec<Diagnostic>,
     line_start: usize,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl<'a> Lexer<'a> {
@@ -19,8 +19,8 @@ impl<'a> Lexer<'a> {
             start: 0,
             current: 0,
             line: 1,
-            diagnostics: vec![],
             line_start: 0,
+            diagnostics: vec![],
         }
     }
 
@@ -31,7 +31,7 @@ impl<'a> Lexer<'a> {
             self.scan_token();
         }
 
-        // End Of File
+        // Append a final EOF token so the parser can detect the end cleanly.
         self.tokens.push(Token::new(
             TokenType::Eof,
             "",
@@ -47,6 +47,7 @@ impl<'a> Lexer<'a> {
         std::mem::take(&mut self.tokens)
     }
 
+    // Map the next character to a token, or dispatch to a specialized scanner.
     fn scan_token(&mut self) {
         let c = self.advance();
         match c {
@@ -93,7 +94,7 @@ impl<'a> Lexer<'a> {
                 self.add_token(t, LiteralType::None);
             }
 
-            // Comment line control
+            // Skip line comments that start with //.
             '/' => {
                 if self.match_char('/') {
                     while self.peek() != '\n' && !self.is_at_end() {
@@ -104,11 +105,11 @@ impl<'a> Lexer<'a> {
                 }
             }
 
-            ' ' | '\r' | '\t' => {} // Skip spaces
+            ' ' | '\r' | '\t' => {} // Ignore horizontal whitespace.
             '\n' => {
                 self.line += 1;
                 self.line_start = self.current;
-            } // Increment line
+            } // Track line starts for accurate column reporting.
 
             '"' => self.string(),
 
@@ -137,10 +138,11 @@ impl<'a> Lexer<'a> {
         self.current >= self.source.len()
     }
 
+    // Return the next character without consuming it.
     fn advance(&mut self) -> char {
         let c = self.peek();
         if c != '\0' {
-            // Increment current by exact char size that allocated in memory.
+            // Move by the UTF-8 byte width of the current character.
             self.current += c.len_utf8();
         }
         c
@@ -184,8 +186,8 @@ impl<'a> Lexer<'a> {
         }
 
         let mut chars = self.source[self.current..].chars();
-        chars.next(); // Skip the first char (current).
-        chars.next().unwrap_or('\0') // Take second.
+        chars.next(); // Skip the current character.
+        chars.next().unwrap_or('\0') // Read the following character if present.
     }
 
     fn string(&mut self) {
