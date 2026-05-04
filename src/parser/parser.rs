@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::error::report::*;
 use crate::lexer::models::*;
 use crate::parser::models::*;
@@ -57,15 +59,43 @@ impl<'a> Parser<'a> {
             TokenType::Semicolon,
             "Except ';' after variable declaration",
         )?;
+
         Ok(Stmt::Var {
             name: name,
             initializer: initializer,
         })
     }
 
+    fn while_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'")?;
+
+        let condition = self.expression()?;
+
+        self.consume(TokenType::RightParen, "Expect ')' after condition")?;
+
+        let body = self.statement()?;
+
+        Ok(Stmt::While {
+            condition,
+            body: Box::new(body),
+        })
+    }
+
     fn statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        if self.match_token(&[TokenType::For]) {
+            return self.for_statement();
+        }
+
+        if self.match_token(&[TokenType::If]) {
+            return self.if_statement();
+        }
+
         if self.match_token(&[TokenType::Print]) {
             return self.print_statement();
+        }
+
+        if self.match_token(&[TokenType::While]) {
+            return self.while_statement();
         }
 
         if self.match_token(&[TokenType::LeftBrace]) {
@@ -77,15 +107,94 @@ impl<'a> Parser<'a> {
         self.expression_statement()
     }
 
+    fn for_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'")?;
+
+        let initializer = if self.match_token(&[TokenType::Semicolon]) {
+            None
+        } else if self.match_token(&[TokenType::Var]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.check(TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        let condition = condition.unwrap_or(Expr::Literal {
+            value: LiteralType::Boolean(true),
+        });
+
+        self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
+
+        let increment = if !self.check(TokenType::RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenType::RightParen, "Expect ')' after for clauses")?;
+
+        let body = self.statement()?;
+
+        let body = if let Some(inc) = increment {
+            Stmt::Block {
+                statements: vec![body, Stmt::Expression { expression: inc }],
+            }
+        } else {
+            body
+        };
+
+        let body = Stmt::While {
+            condition,
+            body: Box::new(body),
+        };
+
+        let body = if let Some(init) = initializer {
+            Stmt::Block {
+                statements: vec![init, body],
+            }
+        } else {
+            body
+        };
+
+        Ok(body)
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = self.statement()?;
+
+        let mut else_branch = None;
+
+        if self.match_token(&[TokenType::Else]) {
+            else_branch = Some(Box::new(self.statement()?));
+        }
+
+        Ok(Stmt::If {
+            condition,
+            then_branch: Box::new(then_branch),
+            else_branch,
+        })
+    }
+
     fn print_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
+
         Ok(Stmt::Print { expression: expr })
     }
 
     fn expression_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
+
         Ok(Stmt::Expression { expression: expr })
     }
 
@@ -97,7 +206,8 @@ impl<'a> Parser<'a> {
             statements.push(stmt);
         }
 
-        self.consume(TokenType::RightBrace, "Expect '}' after block.");
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+
         Ok(statements)
     }
 
@@ -106,7 +216,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Result<Expr<'a>, ParseError> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.match_token(&[TokenType::Equal]) {
             let equals = self.previous().clone();
@@ -119,6 +229,39 @@ impl<'a> Parser<'a> {
                 });
             } else {
                 return Err(self.error(&equals, "Invalid assignment target."));
+            }
+        }
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr<'a>, ParseError> {
+        let mut expr = self.and()?;
+
+        while self.match_token(&[TokenType::Or]) {
+            let operator = self.previous().clone();
+            let right = &self.and()?;
+
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: operator,
+                right: Box::new(right.clone()),
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr<'a>, ParseError> {
+        let mut expr = self.equality()?;
+
+        while self.match_token(&[TokenType::And]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+
+            expr = Expr::Logical {
+                left: Box::new(expr),
+                operator: operator,
+                right: Box::new(right),
             }
         }
         Ok(expr)
@@ -202,7 +345,47 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             });
         }
-        Ok(self.primary()?)
+        // Ok(self.primary()?)
+
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr<'a>, ParseError> {
+        let mut expr = self.primary()?;
+        // Consume any chained call expressions like foo()(1, 2).
+        loop {
+            if self.match_token(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr<'a>) -> Result<Expr<'a>, ParseError> {
+        let mut arguments: Vec<Expr> = vec![];
+        // Parse zero or more comma-separated arguments.
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                arguments.push(self.expression()?);
+
+                if !self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self
+            .consume(TokenType::RightParen, "Expect ')' after arguments.")?
+            .clone();
+
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            paren,
+            arguments,
+        })
     }
 
     // Primary expressions are the leaf nodes of the grammar.

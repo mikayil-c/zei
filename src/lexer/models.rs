@@ -3,6 +3,7 @@ use crate::error::report::Span;
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+// Token kinds produced by the lexer and consumed by the parser.
 pub enum TokenType {
     // Single character tokens.
     Comma,
@@ -77,6 +78,7 @@ pub fn get_keyword_token(text: &str) -> Option<TokenType> {
 }
 
 #[derive(Clone, Debug)]
+// Literal values embedded in tokens and promoted into the AST.
 pub enum LiteralType {
     Number(f64),
     String(String),
@@ -85,6 +87,7 @@ pub enum LiteralType {
 }
 
 #[derive(Clone, Debug)]
+// A token with a borrowed slice of the source and span metadata.
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,

@@ -1,17 +1,29 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::environment::environment::Environment;
 use crate::error::report::*;
+use crate::interpreter::native::Clock;
 use crate::interpreter::value::Value;
 use crate::lexer::models::TokenType;
 use crate::parser::models::{Expr, Stmt};
 
 pub struct Interpreter {
-    environment: Environment,
+    pub globals: Rc<RefCell<Environment>>,
+    environment: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {
-            environment: Environment::new(),
+        let globals = Rc::new(RefCell::new(Environment::new()));
+
+        globals
+            .borrow_mut()
+            .define("clock".to_string(), Value::Callable(Rc::new(Clock)));
+
+        Interpreter {
+            globals: Rc::clone(&globals),
+            environment: Rc::clone(&globals),
         }
     }
 
@@ -42,12 +54,36 @@ impl Interpreter {
             Stmt::Var { name, initializer } => {
                 let value = self.evaluate(initializer)?;
 
-                self.environment.define(name.lexeme.to_string(), value);
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.to_string(), value);
                 Ok(())
             }
             Stmt::Block { statements } => {
-                let block_env = Environment::new_with_enclosing(self.environment.clone());
+                let block_env = Environment::new_with_enclosing(self.environment.borrow().clone());
                 self.execute_block(statements, block_env)
+            }
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let v = self.evaluate(condition)?;
+
+                if v.is_truthy() {
+                    self.execute(then_branch)?;
+                } else if let Some(else_stmt) = else_branch {
+                    self.execute(else_stmt)?;
+                }
+
+                Ok(())
+            }
+            Stmt::While { condition, body } => {
+                let v = self.evaluate(condition)?;
+                while v.is_truthy() {
+                    self.execute(body)?;
+                }
+                Ok(())
             }
         }
     }
@@ -57,7 +93,7 @@ impl Interpreter {
         statements: &[Stmt],
         environment: Environment,
     ) -> Result<(), Diagnostic> {
-        let previous = std::mem::replace(&mut self.environment, environment);
+        let previous = std::mem::replace(&mut self.environment, Rc::new(RefCell::new(environment)));
 
         let result = statements.iter().try_for_each(|stmt| self.execute(stmt));
 
@@ -214,11 +250,65 @@ impl Interpreter {
                     }),
                 }
             }
-            Expr::Variable { name } => self.environment.get(name),
+            Expr::Variable { name } => self.environment.borrow().get(name),
             Expr::Assign { name, value: _ } => {
                 let value = self.evaluate(expr)?;
-                self.environment.assign(name, value.clone())?;
+                self.environment.borrow_mut().assign(name, value.clone())?;
                 Ok(value)
+            }
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                let left = self.evaluate(left)?;
+
+                if let TokenType::Or = operator.token_type {
+                    if left.is_truthy() {
+                        return Ok(left);
+                    } else {
+                        if !left.is_truthy() {
+                            return Ok(left);
+                        }
+                    }
+                }
+
+                self.evaluate(right)
+            }
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callee_value = self.evaluate(callee)?;
+
+                let mut args: Vec<Value> = vec![];
+
+                for argument in arguments {
+                    args.push(self.evaluate(argument)?);
+                }
+
+                match callee_value {
+                    Value::Callable(func) => {
+                        if args.len() != func.arity() {
+                            return Err(Diagnostic {
+                                kind: DiagnosticKind::Error,
+                                message: format!(
+                                    "Expected {} arguments but got {}.",
+                                    func.arity(),
+                                    args.len()
+                                ),
+                                span: paren.span,
+                            });
+                        }
+                        func.call(self, args)
+                    }
+                    _ => Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Can only call functions and classes.".to_string(),
+                        span: paren.span,
+                    }),
+                }
             }
         }
     }

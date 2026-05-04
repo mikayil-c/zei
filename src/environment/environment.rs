@@ -7,6 +7,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+// A scope for variable bindings with an optional enclosing parent.
 pub struct Environment {
     enclosing: Option<Box<Environment>>,
     values: HashMap<String, Value>,

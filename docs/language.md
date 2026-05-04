@@ -13,19 +13,21 @@ The execution pipeline is:
 
 - [src/main.rs](../src/main.rs): program entry point, REPL, file execution, and pipeline wiring.
 - [src/lexer/lexer.rs](../src/lexer/lexer.rs): turns characters into tokens and tracks spans.
-- [src/lexer/token.rs](../src/lexer/token.rs): token types, literals, and token spans.
+- [src/lexer/models.rs](../src/lexer/models.rs): token types, literals, and token spans.
 - [src/parser/parser.rs](../src/parser/parser.rs): recursive-descent parser with error recovery.
-- [src/parser/expr.rs](../src/parser/expr.rs): AST node definitions for expressions and statements.
+- [src/parser/models.rs](../src/parser/models.rs): AST node definitions for expressions and statements.
 - [src/interpreter/interpreter.rs](../src/interpreter/interpreter.rs): evaluates AST nodes at runtime.
 - [src/interpreter/value.rs](../src/interpreter/value.rs): runtime value representation and truthiness rules.
+- [src/interpreter/native.rs](../src/interpreter/native.rs): native callables exposed to the runtime.
+- [src/environment/environment.rs](../src/environment/environment.rs): scoped variable storage and lookup.
 - [src/error/report.rs](../src/error/report.rs): diagnostics and source-span reporting.
 
 ## Current Language Features
 
 - Literals: numbers, strings, booleans, and nil.
-- Expressions: unary, binary, grouping, and variable references.
-- Statements: expression statements, print statements, and variable declarations.
-- Runtime operations: arithmetic, comparisons, equality, string concatenation, and truthiness.
+- Expressions: unary, binary, grouping, variable references, assignment, logical operators, and calls.
+- Statements: expression statements, print statements, variable declarations, blocks, if/else, while, and for.
+- Runtime operations: arithmetic, comparisons, equality, string concatenation, truthiness, and a native `clock` callable.
 
 ## Parser Notes
 
@@ -46,7 +48,8 @@ The execution pipeline is:
 If you are changing behavior, read the code in this order:
 
 1. `main.rs` for the end-to-end flow.
-2. `lexer.rs` and `token.rs` for tokenization and source spans.
-3. `parser.rs` and `expr.rs` for syntax and AST shape.
+2. `lexer.rs` and `models.rs` for tokenization and source spans.
+3. `parser.rs` and `models.rs` for syntax and AST shape.
 4. `interpreter.rs` and `value.rs` for runtime behavior.
-5. `report.rs` for diagnostic formatting.
+5. `native.rs` for built-in callables.
+6. `report.rs` for diagnostic formatting.
