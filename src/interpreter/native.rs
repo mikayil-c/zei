@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fmt,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     error::report::Diagnostic,
@@ -6,6 +9,12 @@ use crate::{
 };
 
 pub struct Clock;
+
+impl fmt::Display for Clock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<native fn clock>")
+    }
+}
 
 impl Callable for Clock {
     fn arity(&self) -> usize {

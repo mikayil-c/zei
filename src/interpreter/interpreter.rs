@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use crate::environment::environment::Environment;
 use crate::error::report::*;
+use crate::interpreter::function::Function;
 use crate::interpreter::native::Clock;
 use crate::interpreter::value::Value;
 use crate::lexer::models::TokenType;
@@ -56,11 +57,13 @@ impl Interpreter {
 
                 self.environment
                     .borrow_mut()
-                    .define(name.lexeme.to_string(), value);
+                    .define(name.lexeme.clone(), value);
                 Ok(())
             }
             Stmt::Block { statements } => {
-                let block_env = Environment::new_with_enclosing(self.environment.borrow().clone());
+                let block_env = Rc::new(RefCell::new(Environment::new_with_enclosing(Rc::clone(
+                    &self.environment,
+                ))));
                 self.execute_block(statements, block_env)
             }
             Stmt::If {
@@ -71,29 +74,43 @@ impl Interpreter {
                 let v = self.evaluate(condition)?;
 
                 if v.is_truthy() {
-                    self.execute(then_branch)?;
+                    self.execute(then_branch)?
                 } else if let Some(else_stmt) = else_branch {
-                    self.execute(else_stmt)?;
+                    self.execute(else_stmt)?
                 }
 
                 Ok(())
             }
             Stmt::While { condition, body } => {
-                let v = self.evaluate(condition)?;
-                while v.is_truthy() {
-                    self.execute(body)?;
+                while self.evaluate(condition)?.is_truthy() {
+                    self.execute(body)?
                 }
                 Ok(())
             }
+            Stmt::Function { name, params, body } => {
+                let function = Function::new(
+                    name.clone(),
+                    params.clone(),
+                    body.clone(),
+                    Rc::clone(&self.environment),
+                );
+
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.clone(), Value::Callable(Rc::new(function)));
+
+                Ok(())
+            }
+            Stmt::Return { keyword, value } => todo!(),
         }
     }
 
-    fn execute_block(
+    pub(crate) fn execute_block(
         &mut self,
         statements: &[Stmt],
-        environment: Environment,
+        environment: Rc<RefCell<Environment>>,
     ) -> Result<(), Diagnostic> {
-        let previous = std::mem::replace(&mut self.environment, Rc::new(RefCell::new(environment)));
+        let previous = std::mem::replace(&mut self.environment, environment);
 
         let result = statements.iter().try_for_each(|stmt| self.execute(stmt));
 
@@ -122,7 +139,7 @@ impl Interpreter {
                         }
                     }
                     TokenType::Bang => {
-                        return Ok(Value::Boolean(right_value.is_truthy()));
+                        return Ok(Value::Boolean(!right_value.is_truthy()));
                     }
                     _ => {
                         return Err(Diagnostic {
@@ -251,29 +268,43 @@ impl Interpreter {
                 }
             }
             Expr::Variable { name } => self.environment.borrow().get(name),
-            Expr::Assign { name, value: _ } => {
-                let value = self.evaluate(expr)?;
-                self.environment.borrow_mut().assign(name, value.clone())?;
-                Ok(value)
+            Expr::Assign { name, value } => {
+                let evaluated = self.evaluate(value)?;
+
+                self.environment
+                    .borrow_mut()
+                    .assign(name, evaluated.clone())?;
+
+                Ok(evaluated)
             }
             Expr::Logical {
                 left,
                 operator,
                 right,
             } => {
-                let left = self.evaluate(left)?;
+                let left_value = self.evaluate(left)?;
 
-                if let TokenType::Or = operator.token_type {
-                    if left.is_truthy() {
-                        return Ok(left);
-                    } else {
-                        if !left.is_truthy() {
-                            return Ok(left);
+                match operator.token_type {
+                    TokenType::Or => {
+                        if left_value.is_truthy() {
+                            Ok(left_value)
+                        } else {
+                            self.evaluate(right)
                         }
                     }
+                    TokenType::And => {
+                        if !left_value.is_truthy() {
+                            Ok(left_value)
+                        } else {
+                            self.evaluate(right)
+                        }
+                    }
+                    _ => Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Unknown logical operator".to_string(),
+                        span: operator.span,
+                    }),
                 }
-
-                self.evaluate(right)
             }
             Expr::Call {
                 callee,

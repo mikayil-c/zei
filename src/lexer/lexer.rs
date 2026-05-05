@@ -3,7 +3,7 @@ use crate::lexer::models::*;
 
 pub struct Lexer<'a> {
     source: &'a str,
-    tokens: Vec<Token<'a>>,
+    tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
@@ -24,7 +24,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn lex(&mut self) -> Vec<Token<'a>> {
+    pub fn lex(&mut self) -> Vec<Token> {
         while !self.is_at_end() {
             // This is the beginning of the next lexeme.
             self.start = self.current;
@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
         // Append a final EOF token so the parser can detect the end cleanly.
         self.tokens.push(Token::new(
             TokenType::Eof,
-            "",
+            "".to_string(),
             LiteralType::None,
             Span {
                 start: self.current,
@@ -149,7 +149,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn add_token(&mut self, token_type: TokenType, literal: LiteralType) {
-        let lexeme = &self.source[self.start..self.current];
+        let lexeme = self.source[self.start..self.current].to_string();
 
         let span = Span {
             start: self.start,

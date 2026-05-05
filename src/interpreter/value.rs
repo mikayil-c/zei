@@ -32,7 +32,7 @@ impl fmt::Display for Value {
             Value::Boolean(b) => write!(f, "{}", b),
 
             Value::String(s) => write!(f, "{}", s),
-            Value::Callable(c) => write!(f, "<callable>"),
+            Value::Callable(c) => write!(f, "{}", c.as_ref()),
         }
     }
 }

@@ -2,8 +2,9 @@ use crate::{
     error::report::Diagnostic,
     interpreter::{interpreter::Interpreter, value::Value},
 };
+use std::fmt;
 
-pub trait Callable {
+pub trait Callable: fmt::Display {
     // Number of arguments expected by this callable.
     fn arity(&self) -> usize;
 

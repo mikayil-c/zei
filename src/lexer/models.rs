@@ -87,16 +87,16 @@ pub enum LiteralType {
 }
 
 #[derive(Clone, Debug)]
-// A token with a borrowed slice of the source and span metadata.
-pub struct Token<'a> {
+// A token with an owned lexeme and span metadata.
+pub struct Token {
     pub token_type: TokenType,
-    pub lexeme: &'a str,
+    pub lexeme: String,
     pub literal: LiteralType,
     pub span: Span,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token_type: TokenType, lexeme: &'a str, literal: LiteralType, span: Span) -> Self {
+impl Token {
+    pub fn new(token_type: TokenType, lexeme: String, literal: LiteralType, span: Span) -> Self {
         Self {
             token_type,
             lexeme,
@@ -106,7 +106,7 @@ impl<'a> Token<'a> {
     }
 }
 
-impl<'a> fmt::Display for Token<'a> {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

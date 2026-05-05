@@ -2,70 +2,73 @@ use crate::lexer::models::{LiteralType, Token};
 
 #[derive(Clone, Debug)]
 // Expression nodes for the syntax tree.
-pub enum Expr<'a> {
+pub enum Expr {
     Assign {
-        name: Token<'a>,
-        value: Box<Expr<'a>>,
+        name: Token,
+        value: Box<Expr>,
     },
-
     Binary {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
     },
-
     Call {
-        callee: Box<Expr<'a>>,
-        paren: Token<'a>,
-        arguments: Vec<Expr<'a>>,
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
     },
-
     Grouping {
-        expression: Box<Expr<'a>>,
+        expression: Box<Expr>,
     },
-
     Literal {
         value: LiteralType,
     },
-
     Logical {
-        left: Box<Expr<'a>>,
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
     },
-
     Unary {
-        operator: Token<'a>,
-        right: Box<Expr<'a>>,
+        operator: Token,
+        right: Box<Expr>,
     },
     Variable {
-        name: Token<'a>,
+        name: Token,
     },
 }
 
 #[derive(Clone, Debug)]
 // Statement nodes for the syntax tree.
-pub enum Stmt<'a> {
+pub enum Stmt {
     Block {
-        statements: Vec<Stmt<'a>>,
+        statements: Vec<Stmt>,
     },
     Expression {
-        expression: Expr<'a>,
+        expression: Expr,
+    },
+    Function {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
     },
     If {
-        condition: Expr<'a>,
-        then_branch: Box<Stmt<'a>>,
-        else_branch: Option<Box<Stmt<'a>>>,
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
     },
     Print {
-        expression: Expr<'a>,
+        expression: Expr,
+    },
+    Return {
+        keyword: Token,
+        value: Expr,
     },
     Var {
-        name: Token<'a>,
-        initializer: Expr<'a>,
+        name: Token,
+        initializer: Expr,
     },
     While {
-        condition: Expr<'a>,
-        body: Box<Stmt<'a>>,
+        condition: Expr,
+        body: Box<Stmt>,
     },
 }

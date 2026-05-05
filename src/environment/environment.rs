@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     error::report::{Diagnostic, DiagnosticKind},
@@ -9,7 +9,7 @@ use crate::{
 #[derive(Clone, Debug)]
 // A scope for variable bindings with an optional enclosing parent.
 pub struct Environment {
-    enclosing: Option<Box<Environment>>,
+    enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Value>,
 }
 
@@ -21,9 +21,9 @@ impl Environment {
         };
     }
 
-    pub fn new_with_enclosing(enclosing: Environment) -> Self {
+    pub fn new_with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Self {
         return Self {
-            enclosing: Some(Box::new(enclosing)),
+            enclosing: Some(enclosing),
             values: HashMap::new(),
         };
     }
@@ -33,35 +33,34 @@ impl Environment {
     }
 
     pub fn get(&self, name: &Token) -> Result<Value, Diagnostic> {
-        if self.values.contains_key(name.lexeme) {
-            let value = self.values.get(name.lexeme).unwrap();
+        if let Some(value) = self.values.get(name.lexeme.as_str()) {
             return Ok(value.clone());
         }
 
         if let Some(environment) = &self.enclosing {
-            return environment.get(name);
+            return environment.borrow().get(name);
         }
 
         Err(Diagnostic {
             kind: DiagnosticKind::Error,
-            message: format!("Undefined variable '{}'.", name.lexeme),
+            message: format!("Undefined variable '{}'.", name.lexeme.as_str()),
             span: name.span.clone(),
         })
     }
 
     pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), Diagnostic> {
-        if let Some(existing_value) = self.values.get_mut(name.lexeme) {
+        if let Some(existing_value) = self.values.get_mut(name.lexeme.as_str()) {
             *existing_value = value;
             return Ok(());
         }
 
-        if let Some(environment) = &mut self.enclosing {
-            return environment.assign(name, value);
+        if let Some(environment) = &self.enclosing {
+            return environment.borrow_mut().assign(name, value);
         }
 
         Err(Diagnostic {
             kind: DiagnosticKind::Error,
-            message: format!("Undefined variable '{}'.", name.lexeme),
+            message: format!("Undefined variable '{}'.", name.lexeme.as_str()),
             span: name.span.clone(),
         })
     }
