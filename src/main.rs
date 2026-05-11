@@ -13,36 +13,6 @@ use crate::interpreter::interpreter::Interpreter;
 use crate::lexer::lexer::Lexer;
 use crate::parser::parser::Parser;
 
-// pub fn print_ast(expr: &Expr) -> String {
-//     match expr {
-//         Expr::Binary {
-//             left,
-//             operator,
-//             right,
-//         } => parenthesize(&operator.lexeme, &[left, right]),
-//         Expr::Grouping { expression } => parenthesize("group", &[expression]),
-//         Expr::Literal { value } => {
-//             format!("{:?}", value)
-//         }
-//         Expr::Unary { operator, right } => parenthesize(&operator.lexeme, &[right]),
-//     }
-// }
-
-// fn parenthesize(name: &str, exprs: &[&Box<Expr>]) -> String {
-//     let mut builder = String::new();
-
-//     builder.push('(');
-//     builder.push_str(name);
-//     for expr in exprs {
-//         builder.push(' ');
-//         // Print child nodes recursively so nested expressions stay readable.
-//         builder.push_str(&print_ast(expr));
-//     }
-//     builder.push(')');
-
-//     builder
-// }
-
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -61,32 +31,6 @@ fn main() {
         }
     }
 }
-
-// pub fn print_expr(expr: &Expr) -> String {
-//     match expr {
-//         Expr::Binary {
-//             left,
-//             operator,
-//             right,
-//         } => {
-//             format!(
-//                 "({} {} {})",
-//                 operator.lexeme,
-//                 print_expr(left),
-//                 print_expr(right)
-//             )
-//         }
-//         Expr::Grouping { expression } => {
-//             format!("(group {})", print_expr(expression))
-//         }
-//         Expr::Literal { value } => {
-//             format!("{:?}", value)
-//         }
-//         Expr::Unary { operator, right } => {
-//             format!("({} {})", operator.lexeme, print_expr(right))
-//         }
-//     }
-// }
 
 /// Run a source file through the lexer, parser, and interpreter.
 fn run_file(path: &str) -> io::Result<()> {
@@ -132,30 +76,25 @@ fn run_prompt() -> io::Result<()> {
 }
 
 fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), i32> {
-    let mut lexer = Lexer::new(source);
+    let mut lexer = Lexer::new(source.to_string());
     let tokens = lexer.lex();
 
-    let mut parser = Parser::new(&tokens);
+    let mut parser = Parser::new(tokens);
     let statements = parser.parse();
 
     if !lexer.diagnostics.is_empty() || !parser.diagnostics.is_empty() {
-        report_diagnostics(&source, &[lexer.diagnostics, parser.diagnostics].concat());
+        // İki array'i birleştirirken değerlerini reference (&) alıp klonlayarak (ya da to_vec) ilerleyin
+        let mut all_diags = lexer.diagnostics.clone();
+        all_diags.extend(parser.diagnostics.clone());
+        report_diagnostics(&source, &all_diags);
         return Err(65);
     }
 
+    // if !lexer.diagnostics.is_empty() || !parser.diagnostics.is_empty() {
+    //     report_diagnostics(&source, &[lexer.diagnostics, parser.diagnostics].concat());
+    //     return Err(65);
+    // }
+
     interpreter.interpret(&statements, &source);
-
-    // if let statements = &expression {
-
-    // match interpreter.evaluate() {
-    //     Ok(value) => {
-    //         println!("{}", value);
-    //     }
-    //     Err(diagnostic) => {
-    //         report_diagnostics(source, &[diagnostic]);
-    //         return Err(70);
-    //     }
-    // }
-    // }
     Ok(())
 }

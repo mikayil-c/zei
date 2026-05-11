@@ -3,9 +3,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::{
-    error::report::Diagnostic,
-    interpreter::{callable::Callable, interpreter::Interpreter, value::Value},
+use crate::interpreter::{
+    callable::Callable, execution_error::ExecutionError, interpreter::Interpreter, value::Value,
 };
 
 pub struct Clock;
@@ -25,7 +24,7 @@ impl Callable for Clock {
         &self,
         _interpreter: &mut Interpreter,
         _arguments: Vec<Value>,
-    ) -> Result<Value, Diagnostic> {
+    ) -> Result<Value, ExecutionError> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)

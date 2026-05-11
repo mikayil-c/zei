@@ -1,8 +1,8 @@
 use crate::error::report::*;
 use crate::lexer::models::*;
 
-pub struct Lexer<'a> {
-    source: &'a str,
+pub struct Lexer {
+    source: String,
     tokens: Vec<Token>,
     start: usize,
     current: usize,
@@ -11,8 +11,8 @@ pub struct Lexer<'a> {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl Lexer {
+    pub fn new(source: String) -> Self {
         Self {
             source: source,
             tokens: vec![],
@@ -149,7 +149,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn add_token(&mut self, token_type: TokenType, literal: LiteralType) {
-        let lexeme = self.source[self.start..self.current].to_string();
+        let lexeme = &self.source[self.start..self.current];
 
         let span = Span {
             start: self.start,
@@ -159,7 +159,7 @@ impl<'a> Lexer<'a> {
         };
 
         self.tokens
-            .push(Token::new(token_type, lexeme, literal, span));
+            .push(Token::new(token_type, lexeme.to_string(), literal, span));
     }
 
     fn match_char(&mut self, expected: char) -> bool {

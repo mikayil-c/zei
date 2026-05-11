@@ -1,7 +1,4 @@
-use crate::{
-    error::report::Diagnostic,
-    interpreter::{interpreter::Interpreter, value::Value},
-};
+use crate::interpreter::{execution_error::ExecutionError, interpreter::Interpreter, value::Value};
 use std::fmt;
 
 pub trait Callable: fmt::Display {
@@ -9,5 +6,9 @@ pub trait Callable: fmt::Display {
     fn arity(&self) -> usize;
 
     // Execute the callable and return a runtime value or diagnostic.
-    fn call(&self, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Value, Diagnostic>;
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Value, ExecutionError>;
 }

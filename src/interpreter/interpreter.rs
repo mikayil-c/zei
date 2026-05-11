@@ -3,10 +3,11 @@ use std::rc::Rc;
 
 use crate::environment::environment::Environment;
 use crate::error::report::*;
+use crate::interpreter::execution_error::ExecutionError;
 use crate::interpreter::function::Function;
 use crate::interpreter::native::Clock;
 use crate::interpreter::value::Value;
-use crate::lexer::models::TokenType;
+use crate::lexer::models::{LiteralType, TokenType};
 use crate::parser::models::{Expr, Stmt};
 
 pub struct Interpreter {
@@ -33,15 +34,18 @@ impl Interpreter {
         for stmt in statements {
             match self.execute(&stmt) {
                 Ok(_) => (),
-                Err(diagnostic) => {
-                    report_diagnostics(source, &[diagnostic]);
-                }
+                Err(execution_error) => match execution_error {
+                    ExecutionError::Error(diagnostic) => {
+                        report_diagnostics(source, &[diagnostic]);
+                    }
+                    ExecutionError::Return(_) => {}
+                },
             }
         }
     }
 
     // Statements produce side effects; expressions are evaluated for their values.
-    fn execute(&mut self, stmt: &Stmt) -> Result<(), Diagnostic> {
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), ExecutionError> {
         match stmt {
             Stmt::Expression { expression } => {
                 self.evaluate(&expression)?;
@@ -57,7 +61,8 @@ impl Interpreter {
 
                 self.environment
                     .borrow_mut()
-                    .define(name.lexeme.clone(), value);
+                    .define(name.lexeme.to_string(), value);
+
                 Ok(())
             }
             Stmt::Block { statements } => {
@@ -85,6 +90,7 @@ impl Interpreter {
                 while self.evaluate(condition)?.is_truthy() {
                     self.execute(body)?
                 }
+
                 Ok(())
             }
             Stmt::Function { name, params, body } => {
@@ -97,11 +103,22 @@ impl Interpreter {
 
                 self.environment
                     .borrow_mut()
-                    .define(name.lexeme.clone(), Value::Callable(Rc::new(function)));
+                    .define(name.lexeme.to_string(), Value::Callable(Rc::new(function)));
 
                 Ok(())
             }
-            Stmt::Return { keyword, value } => todo!(),
+            Stmt::Return { keyword: _, value } => {
+                let return_value = if let Expr::Literal {
+                    value: LiteralType::None,
+                } = value
+                {
+                    Value::Nil
+                } else {
+                    self.evaluate(value)?
+                };
+
+                Err(ExecutionError::Return(return_value))
+            }
         }
     }
 
@@ -109,7 +126,7 @@ impl Interpreter {
         &mut self,
         statements: &[Stmt],
         environment: Rc<RefCell<Environment>>,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<(), ExecutionError> {
         let previous = std::mem::replace(&mut self.environment, environment);
 
         let result = statements.iter().try_for_each(|stmt| self.execute(stmt));
@@ -119,7 +136,7 @@ impl Interpreter {
     }
 
     // Evaluate an expression node into a runtime value.
-    pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, Diagnostic> {
+    pub fn evaluate(&mut self, expr: &Expr) -> Result<Value, ExecutionError> {
         match expr {
             Expr::Literal { value } => Ok(value.clone().into()),
             Expr::Grouping { expression } => self.evaluate(expression),
@@ -131,22 +148,22 @@ impl Interpreter {
                         if let Value::Number(n) = right_value {
                             return Ok(Value::Number(-n));
                         } else {
-                            return Err(Diagnostic {
+                            return Err(ExecutionError::Error(Diagnostic {
                                 kind: DiagnosticKind::Error,
                                 message: "Operand must be a number".to_string(),
                                 span: operator.span.clone(),
-                            });
+                            }));
                         }
                     }
                     TokenType::Bang => {
                         return Ok(Value::Boolean(!right_value.is_truthy()));
                     }
                     _ => {
-                        return Err(Diagnostic {
+                        return Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: "Unkown unary operator".to_string(),
                             span: operator.span.clone(),
-                        });
+                        }));
                     }
                 }
             }
@@ -162,34 +179,34 @@ impl Interpreter {
                     TokenType::Minus => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l - r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: "Runtime Error: Operands must be numbers at line {}"
                                 .to_string(),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::Slash => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l / r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: "Runtime Error: Operands must be numbers at line {}"
                                 .to_string(),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::Star => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Number(l * r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: "Runtime Error: Operands must be numbers at line {}"
                                 .to_string(),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::Plus => match (left_value, right_value) {
@@ -198,76 +215,80 @@ impl Interpreter {
                             Ok(Value::String(format!("{}{}", l, r)))
                         }
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: "Operands must be two numbers or two strings.".to_string(),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::Greater => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Boolean(l > r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: format!(
                                 "Runtime Error: Operands must be numbers at line {}",
                                 operator.span.line
                             ),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::GreaterEqual => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Boolean(l >= r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: format!(
                                 "Runtime Error: Operands must be numbers at line {}",
                                 operator.span.line
                             ),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::Less => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Boolean(l < r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: format!(
                                 "Runtime Error: Operands must be numbers at line {}",
                                 operator.span.line
                             ),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::LessEqual => match (left_value, right_value) {
                         (Value::Number(l), Value::Number(r)) => Ok(Value::Boolean(l <= r)),
 
-                        _ => Err(Diagnostic {
+                        _ => Err(ExecutionError::Error(Diagnostic {
                             kind: DiagnosticKind::Error,
                             message: format!(
                                 "Runtime Error: Operands must be numbers at line {}",
                                 operator.span.line
                             ),
                             span: operator.span.clone(),
-                        }),
+                        })),
                     },
 
                     TokenType::BangEqual => Ok(Value::Boolean(left_value != right_value)),
                     TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value)),
 
-                    _ => Err(Diagnostic {
+                    _ => Err(ExecutionError::Error(Diagnostic {
                         kind: DiagnosticKind::Error,
                         message: "Unknown binary operator".to_string(),
                         span: operator.span.clone(),
-                    }),
+                    })),
                 }
             }
-            Expr::Variable { name } => self.environment.borrow().get(name),
+            Expr::Variable { name } => self
+                .environment
+                .borrow()
+                .get(name)
+                .map_err(|diag| ExecutionError::Error(diag)),
             Expr::Assign { name, value } => {
                 let evaluated = self.evaluate(value)?;
 
@@ -299,11 +320,11 @@ impl Interpreter {
                             self.evaluate(right)
                         }
                     }
-                    _ => Err(Diagnostic {
+                    _ => Err(ExecutionError::Error(Diagnostic {
                         kind: DiagnosticKind::Error,
                         message: "Unknown logical operator".to_string(),
                         span: operator.span,
-                    }),
+                    })),
                 }
             }
             Expr::Call {
@@ -322,7 +343,7 @@ impl Interpreter {
                 match callee_value {
                     Value::Callable(func) => {
                         if args.len() != func.arity() {
-                            return Err(Diagnostic {
+                            return Err(ExecutionError::Error(Diagnostic {
                                 kind: DiagnosticKind::Error,
                                 message: format!(
                                     "Expected {} arguments but got {}.",
@@ -330,15 +351,15 @@ impl Interpreter {
                                     args.len()
                                 ),
                                 span: paren.span,
-                            });
+                            }));
                         }
                         func.call(self, args)
                     }
-                    _ => Err(Diagnostic {
+                    _ => Err(ExecutionError::Error(Diagnostic {
                         kind: DiagnosticKind::Error,
                         message: "Can only call functions and classes.".to_string(),
                         span: paren.span,
-                    }),
+                    })),
                 }
             }
         }

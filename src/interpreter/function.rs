@@ -2,8 +2,9 @@ use std::{cell::RefCell, fmt, rc::Rc};
 
 use crate::{
     environment::environment::Environment,
-    error::report::Diagnostic,
-    interpreter::{callable::Callable, interpreter::Interpreter, value::Value},
+    interpreter::{
+        callable::Callable, execution_error::ExecutionError, interpreter::Interpreter, value::Value,
+    },
     lexer::models::Token,
     parser::models::Stmt,
 };
@@ -33,7 +34,7 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<fn {}>", self._name.lexeme.as_str())
+        write!(f, "<fn {}>", self._name.lexeme)
     }
 }
 
@@ -42,17 +43,27 @@ impl Callable for Function {
         self.params.len()
     }
 
-    fn call(&self, interpreter: &mut Interpreter, args: Vec<Value>) -> Result<Value, Diagnostic> {
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        args: Vec<Value>,
+    ) -> Result<Value, ExecutionError> {
         let function_env = Rc::new(RefCell::new(Environment::new_with_enclosing(Rc::clone(
             &self.closure,
         ))));
 
         for (param, arg) in self.params.iter().zip(args.into_iter()) {
-            function_env.borrow_mut().define(param.lexeme.clone(), arg);
+            function_env
+                .borrow_mut()
+                .define(param.lexeme.to_string(), arg);
         }
 
-        interpreter.execute_block(&self.body, function_env);
-
-        Ok(Value::Nil)
+        match interpreter.execute_block(&self.body, function_env) {
+            Ok(_) => Ok(Value::Nil),
+            Err(err) => match err {
+                ExecutionError::Return(value) => Ok(value),
+                ExecutionError::Error(diagnostic) => Err(ExecutionError::Error(diagnostic)),
+            },
+        }
     }
 }

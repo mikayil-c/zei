@@ -33,7 +33,7 @@ impl Environment {
     }
 
     pub fn get(&self, name: &Token) -> Result<Value, Diagnostic> {
-        if let Some(value) = self.values.get(name.lexeme.as_str()) {
+        if let Some(value) = self.values.get(&name.lexeme) {
             return Ok(value.clone());
         }
 
@@ -43,13 +43,13 @@ impl Environment {
 
         Err(Diagnostic {
             kind: DiagnosticKind::Error,
-            message: format!("Undefined variable '{}'.", name.lexeme.as_str()),
+            message: format!("Undefined variable '{}'.", name.lexeme),
             span: name.span.clone(),
         })
     }
 
     pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), Diagnostic> {
-        if let Some(existing_value) = self.values.get_mut(name.lexeme.as_str()) {
+        if let Some(existing_value) = self.values.get_mut(&name.lexeme) {
             *existing_value = value;
             return Ok(());
         }
@@ -60,7 +60,7 @@ impl Environment {
 
         Err(Diagnostic {
             kind: DiagnosticKind::Error,
-            message: format!("Undefined variable '{}'.", name.lexeme.as_str()),
+            message: format!("Undefined variable '{}'.", name.lexeme),
             span: name.span.clone(),
         })
     }

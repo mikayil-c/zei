@@ -5,16 +5,16 @@ use crate::lexer::models::*;
 use crate::parser::models::*;
 
 #[derive(Clone, Debug)]
-pub struct Parser<'a> {
-    pub tokens: &'a [Token],
+pub struct Parser {
+    pub tokens: Vec<Token>,
     pub current: usize,
     pub diagnostics: Vec<Diagnostic>,
 }
 
 // Recursive-descent parser with panic-mode recovery.
 // It reports syntax errors, then skips ahead to the next likely statement boundary.
-impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
+impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens: tokens,
             current: 0,
@@ -244,11 +244,11 @@ impl<'a> Parser<'a> {
                     self.error(&t, "Can't have more than 255 parameters.");
                 }
 
-                let v = self
+                let t = self
                     .consume(TokenType::Identifier, "Expect parameter name.")?
                     .clone();
 
-                parameters.push(v);
+                parameters.push(t);
 
                 if !self.match_token(&[TokenType::Comma]) {
                     break;
@@ -451,13 +451,11 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let paren = self
-            .consume(TokenType::RightParen, "Expect ')' after arguments.")?
-            .clone();
+        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
 
         Ok(Expr::Call {
             callee: Box::new(callee),
-            paren,
+            paren: paren.clone(),
             arguments,
         })
     }
@@ -524,7 +522,7 @@ impl<'a> Parser<'a> {
     fn error(&mut self, token: &Token, message: &str) -> ParseError {
         let formatted_message = match token.token_type {
             TokenType::Eof => format!("Error at end: {}.", message),
-            _ => format!("Error at '{}': {}.", token.lexeme.as_str(), message),
+            _ => format!("Error at '{}': {}.", token.lexeme, message),
         };
 
         self.diagnostics.push(Diagnostic::new(
