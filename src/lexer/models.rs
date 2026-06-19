@@ -77,7 +77,7 @@ pub fn get_keyword_token(text: &str) -> Option<TokenType> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 // Literal values embedded in tokens and promoted into the AST.
 pub enum LiteralType {
     Number(f64),
