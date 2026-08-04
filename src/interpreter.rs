@@ -1,4 +1,5 @@
 pub mod callable;
+pub mod class;
 pub mod execution_error;
 pub mod function;
 pub mod interpreter;

@@ -17,6 +17,10 @@ pub enum Expr {
         paren: Token,
         arguments: Vec<Expr>,
     },
+    Get {
+        object: Box<Expr>,
+        name: Token,
+    },
     Grouping {
         expression: Box<Expr>,
     },
@@ -27,6 +31,9 @@ pub enum Expr {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
+    },
+    This {
+        keyword: Token,
     },
     Unary {
         operator: Token,
@@ -42,6 +49,10 @@ pub enum Expr {
 pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
+    },
+    Class {
+        name: Token,
+        methods: Vec<Stmt>,
     },
     Expression {
         expression: Expr,

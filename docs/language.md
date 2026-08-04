@@ -25,9 +25,15 @@ The execution pipeline is:
 ## Current Language Features
 
 - Literals: numbers, strings, booleans, and nil.
-- Expressions: unary, binary, grouping, variable references, assignment, logical operators, and calls.
-- Statements: expression statements, print statements, variable declarations, blocks, if/else, while, and for.
-- Runtime operations: arithmetic, comparisons, equality, string concatenation, truthiness, and a native `clock` callable.
+- Expressions: unary, binary, grouping, variable references, assignment, logical operators, calls, and property access.
+- Statements: expression statements, print statements, variable declarations, blocks, if/else, while, for, function declarations, return statements, and class declarations.
+- Runtime operations: arithmetic, comparisons, equality, string concatenation, truthiness, native `clock` calls, and instance method dispatch.
+
+## Class and Function Structure
+
+- Functions can now be declared with `fun name(params) { ... }` and called with normal argument lists.
+- Classes can be declared with `class Name { ... }`, and methods are defined inside the class body with `fun methodName(...) { ... }`.
+- Instance methods receive a bound `this` value when invoked through an instance, allowing methods to access the instance state.
 
 ## Parser Notes
 

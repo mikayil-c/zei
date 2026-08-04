@@ -14,6 +14,7 @@ pub struct Function {
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>,
+    receiver: Option<Value>,
 }
 
 impl Function {
@@ -28,6 +29,17 @@ impl Function {
             params,
             body,
             closure,
+            receiver: None,
+        }
+    }
+
+    pub fn bind_instance(&self, instance: Value) -> Self {
+        Self {
+            _name: self._name.clone(),
+            params: self.params.clone(),
+            body: self.body.clone(),
+            closure: Rc::clone(&self.closure),
+            receiver: Some(instance),
         }
     }
 }
@@ -52,6 +64,12 @@ impl Callable for Function {
             &self.closure,
         ))));
 
+        if let Some(receiver) = self.receiver.clone() {
+            function_env
+                .borrow_mut()
+                .define("this".to_string(), receiver);
+        }
+
         for (param, arg) in self.params.iter().zip(args.into_iter()) {
             function_env
                 .borrow_mut()
@@ -65,5 +83,9 @@ impl Callable for Function {
                 ExecutionError::Error(diagnostic) => Err(ExecutionError::Error(diagnostic)),
             },
         }
+    }
+
+    fn bind(&self, instance: Value) -> Result<Value, ExecutionError> {
+        Ok(Value::Callable(Rc::new(self.bind_instance(instance))))
     }
 }

@@ -1,6 +1,9 @@
-use std::{fmt, rc::Rc};
+use std::{cell::RefCell, fmt, rc::Rc};
 
-use crate::{interpreter::callable::Callable, lexer::models::LiteralType};
+use crate::{
+    interpreter::{callable::Callable, class::Instance},
+    lexer::models::LiteralType,
+};
 
 #[derive(Clone)]
 // Runtime values produced by expression evaluation.
@@ -10,6 +13,7 @@ pub enum Value {
     Number(f64),
     String(String),
     Callable(Rc<dyn Callable>),
+    Instance(Rc<RefCell<Instance>>),
 }
 
 impl Value {
@@ -33,6 +37,7 @@ impl fmt::Display for Value {
 
             Value::String(s) => write!(f, "{}", s),
             Value::Callable(c) => write!(f, "{}", c.as_ref()),
+            Value::Instance(instance) => write!(f, "{}", instance.borrow()),
         }
     }
 }
@@ -45,6 +50,7 @@ impl fmt::Debug for Value {
             Value::Boolean(b) => write!(f, "Boolean({})", b),
             Value::String(s) => write!(f, "String({})", s),
             Value::Callable(_) => write!(f, "Callable"),
+            Value::Instance(instance) => write!(f, "Instance({})", instance.borrow()),
         }
     }
 }
@@ -57,6 +63,7 @@ impl PartialEq for Value {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Callable(_), Value::Callable(_)) => false, // karsilastirilamaz
+            (Value::Instance(a), Value::Instance(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }

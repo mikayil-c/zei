@@ -3,11 +3,13 @@ use std::rc::Rc;
 
 use crate::environment::environment::Environment;
 use crate::error::report::*;
+use crate::interpreter::callable::Callable;
+use crate::interpreter::class::Class;
 use crate::interpreter::execution_error::ExecutionError;
 use crate::interpreter::function::Function;
 use crate::interpreter::native::Clock;
 use crate::interpreter::value::Value;
-use crate::lexer::models::{LiteralType, TokenType};
+use crate::lexer::models::{LiteralType, Token, TokenType};
 use crate::parser::models::{Expr, Stmt};
 
 pub struct Interpreter {
@@ -70,6 +72,27 @@ impl Interpreter {
                     &self.environment,
                 ))));
                 self.execute_block(statements, block_env)
+            }
+            Stmt::Class { name, methods } => {
+                let mut class_methods = std::collections::HashMap::new();
+
+                for method in methods {
+                    if let Stmt::Function { name, params, body } = method {
+                        let function = Rc::new(Function::new(
+                            name.clone(),
+                            params.clone(),
+                            body.clone(),
+                            Rc::clone(&self.environment),
+                        ));
+                        class_methods.insert(name.lexeme.to_string(), function);
+                    }
+                }
+
+                let class = Rc::new(Class::new(name.clone(), class_methods));
+                self.environment
+                    .borrow_mut()
+                    .define(name.lexeme.to_string(), Value::Callable(class.clone()));
+                Ok(())
             }
             Stmt::If {
                 condition,
@@ -289,6 +312,45 @@ impl Interpreter {
                 .borrow()
                 .get(name)
                 .map_err(|diag| ExecutionError::Error(diag)),
+            Expr::This { .. } => {
+                let this_token = Token::new(
+                    TokenType::Identifier,
+                    "this".to_string(),
+                    LiteralType::None,
+                    crate::error::report::Span::new(0, 0, 0, 0),
+                );
+                self.environment
+                    .borrow()
+                    .get(&this_token)
+                    .map_err(|diag| ExecutionError::Error(diag))
+            }
+            Expr::Get { object, name } => {
+                let object_value = self.evaluate(object)?;
+                match object_value {
+                    Value::Instance(instance) => {
+                        let instance_borrowed = instance.borrow();
+                        if let Some(value) = instance_borrowed.get(&name.lexeme) {
+                            Ok(value)
+                        } else if let Some(method) =
+                            instance_borrowed.class().find_method(&name.lexeme)
+                        {
+                            let bound = method.bind(Value::Instance(instance.clone()))?;
+                            Ok(bound)
+                        } else {
+                            Err(ExecutionError::Error(Diagnostic {
+                                kind: DiagnosticKind::Error,
+                                message: format!("Undefined property '{}'.", name.lexeme),
+                                span: name.span.clone(),
+                            }))
+                        }
+                    }
+                    _ => Err(ExecutionError::Error(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Only instances have properties.".to_string(),
+                        span: name.span.clone(),
+                    })),
+                }
+            }
             Expr::Assign { name, value } => {
                 let evaluated = self.evaluate(value)?;
 

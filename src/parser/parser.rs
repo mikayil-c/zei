@@ -38,6 +38,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, ParseError> {
+        if self.match_token(&[TokenType::Class]) {
+            return Ok(self.class_declaration()?);
+        }
+
         if self.match_token(&[TokenType::Fun]) {
             return Ok(self.function("function")?);
         }
@@ -46,6 +50,24 @@ impl Parser {
             return Ok(self.var_declaration()?);
         }
         Ok(self.statement()?)
+    }
+
+    fn class_declaration(&mut self) -> Result<Stmt, ParseError> {
+        let name = self
+            .consume(TokenType::Identifier, "Expect class name.")?
+            .clone();
+
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body.")?;
+
+        let mut methods: Vec<Stmt> = vec![];
+
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            methods.push(self.function("method")?);
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after class body.")?;
+
+        Ok(Stmt::Class { name, methods })
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParseError> {
@@ -426,10 +448,18 @@ impl Parser {
 
     fn call(&mut self) -> Result<Expr, ParseError> {
         let mut expr = self.primary()?;
-        // Consume any chained call expressions like foo()(1, 2).
+
         loop {
             if self.match_token(&[TokenType::LeftParen]) {
                 expr = self.finish_call(expr)?;
+            } else if self.match_token(&[TokenType::Dot]) {
+                let name = self
+                    .consume(TokenType::Identifier, "Expect property name after '.'.")?
+                    .clone();
+                expr = Expr::Get {
+                    object: Box::new(expr),
+                    name,
+                };
             } else {
                 break;
             }
@@ -491,6 +521,12 @@ impl Parser {
         if self.match_token(&[TokenType::Identifier]) {
             return Ok(Expr::Variable {
                 name: self.previous().clone(),
+            });
+        }
+
+        if self.match_token(&[TokenType::This]) {
+            return Ok(Expr::This {
+                keyword: self.previous().clone(),
             });
         }
 

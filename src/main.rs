@@ -98,3 +98,42 @@ fn run(source: &str, interpreter: &mut Interpreter) -> Result<(), i32> {
     interpreter.interpret(&statements, &source);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run_source(source: &str) -> Result<(), i32> {
+        let mut interpreter = Interpreter::new();
+        run(source, &mut interpreter)
+    }
+
+    #[test]
+    fn functions_can_be_defined_and_called() {
+        let source = r#"
+            fun add(a, b) {
+                return a + b;
+            }
+
+            print add(2, 3);
+        "#;
+
+        assert!(run_source(source).is_ok());
+    }
+
+    #[test]
+    fn classes_can_be_instantiated_and_methods_called() {
+        let source = r#"
+            class Doughnut {
+                cook() {
+                    print "cooked";
+                }
+            }
+
+            var doughnut = Doughnut();
+            doughnut.cook();
+        "#;
+
+        assert!(run_source(source).is_ok());
+    }
+}
