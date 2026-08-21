@@ -13,7 +13,6 @@ use crate::lexer::models::{LiteralType, Token, TokenType};
 use crate::parser::models::{Expr, Stmt};
 
 pub struct Interpreter {
-    pub globals: Rc<RefCell<Environment>>,
     environment: Rc<RefCell<Environment>>,
 }
 
@@ -26,24 +25,28 @@ impl Interpreter {
             .define("clock".to_string(), Value::Callable(Rc::new(Clock)));
 
         Interpreter {
-            globals: Rc::clone(&globals),
             environment: Rc::clone(&globals),
         }
     }
 
     // Execute each statement independently so one runtime error does not stop the rest.
-    pub fn interpret(&mut self, statements: &Vec<Stmt>, source: &str) {
+    pub fn interpret(&mut self, statements: &Vec<Stmt>, source: &str) -> bool {
+        let mut had_error = false;
+
         for stmt in statements {
             match self.execute(&stmt) {
                 Ok(_) => (),
                 Err(execution_error) => match execution_error {
                     ExecutionError::Error(diagnostic) => {
+                        had_error = true;
                         report_diagnostics(source, &[diagnostic]);
                     }
                     ExecutionError::Return(_) => {}
                 },
             }
         }
+
+        !had_error
     }
 
     // Statements produce side effects; expressions are evaluated for their values.

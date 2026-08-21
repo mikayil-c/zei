@@ -2,27 +2,28 @@ use std::collections::HashMap;
 
 use crate::{
     error::report::{Diagnostic, DiagnosticKind},
-    interpreter::interpreter::Interpreter,
     lexer::models::Token,
     parser::models::{Expr, Stmt},
 };
 
-pub struct Resolver<'a> {
-    interpreter: &'a mut Interpreter,
+pub struct Resolver {
     scopes: Vec<HashMap<String, bool>>,
+    inside_function: bool,
+    inside_class: bool,
 }
 
-impl<'a> Resolver<'a> {
-    pub fn new(interpreter: &'a mut Interpreter) -> Self {
+impl Resolver {
+    pub fn new() -> Self {
         Self {
-            interpreter,
             scopes: Vec::new(),
+            inside_function: false,
+            inside_class: false,
         }
     }
 
     pub fn resolve(&mut self, statements: &[Stmt]) -> Result<(), Diagnostic> {
         for statement in statements {
-            self.resolve_stmt(&statement)?;
+            self.resolve_stmt(statement)?;
         }
         Ok(())
     }
@@ -55,21 +56,19 @@ impl<'a> Resolver<'a> {
                 Ok(())
             }
             Stmt::Print { expression } => self.resolve_expr(expression),
-            Stmt::Return { keyword: _, value } => self.resolve_expr(value),
-            Stmt::Var { name, initializer } => {
-                let _ = self.declare(&name);
-
-                if let Some(scope) = self.scopes.last() {
-                    if matches!(scope.get(&name.lexeme), Some(false)) {
-                        return Err(Diagnostic {
-                            kind: DiagnosticKind::Error,
-                            message: "Can't read local variable in its own initializer."
-                                .to_string(),
-                            span: name.span.clone(),
-                        });
-                    }
+            Stmt::Return { keyword, value } => {
+                if !self.inside_function {
+                    return Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Can't return from top-level code.".to_string(),
+                        span: keyword.span.clone(),
+                    });
                 }
 
+                self.resolve_expr(value)
+            }
+            Stmt::Var { name, initializer } => {
+                let _ = self.declare(&name);
                 self.resolve_expr(initializer)?;
                 let _ = self.define(&name);
                 Ok(())
@@ -81,6 +80,9 @@ impl<'a> Resolver<'a> {
             Stmt::Class { name, methods } => {
                 let _ = self.declare(name);
                 let _ = self.define(name);
+
+                let enclosing_class = self.inside_class;
+                self.inside_class = true;
 
                 self.begin_scope();
                 if let Some(scope) = self.scopes.last_mut() {
@@ -94,12 +96,15 @@ impl<'a> Resolver<'a> {
                 }
 
                 self.end_scope();
+                self.inside_class = enclosing_class;
                 Ok(())
             }
         }
     }
 
     fn resolve_function(&mut self, params: &[Token], body: &[Stmt]) -> Result<(), Diagnostic> {
+        let enclosing_function = self.inside_function;
+        self.inside_function = true;
         self.begin_scope();
         if let Some(scope) = self.scopes.last_mut() {
             for param in params {
@@ -109,6 +114,7 @@ impl<'a> Resolver<'a> {
 
         self.resolve(body)?;
         self.end_scope();
+        self.inside_function = enclosing_function;
         Ok(())
     }
 
@@ -150,7 +156,17 @@ impl<'a> Resolver<'a> {
                 self.resolve_expr(left)?;
                 self.resolve_expr(right)
             }
-            Expr::This { keyword } => self.resolve_local(expr, keyword),
+            Expr::This { keyword } => {
+                if !self.inside_class {
+                    return Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Can't use 'this' outside of a class.".to_string(),
+                        span: keyword.span.clone(),
+                    });
+                }
+
+                self.resolve_local(expr, keyword)
+            }
             Expr::Set {
                 object,
                 name: _,

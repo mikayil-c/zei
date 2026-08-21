@@ -8,6 +8,8 @@ pub struct Lexer {
     current: usize,
     line: usize,
     line_start: usize,
+    start_line: usize,
+    start_column: usize,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -20,6 +22,8 @@ impl Lexer {
             current: 0,
             line: 1,
             line_start: 0,
+            start_line: 1,
+            start_column: 0,
             diagnostics: vec![],
         }
     }
@@ -28,6 +32,8 @@ impl Lexer {
         while !self.is_at_end() {
             // This is the beginning of the next lexeme.
             self.start = self.current;
+            self.start_line = self.line;
+            self.start_column = self.current - self.line_start;
             self.scan_token();
         }
 
@@ -154,8 +160,8 @@ impl Lexer {
         let span = Span {
             start: self.start,
             end: self.current,
-            line: self.line,
-            column: self.start - self.line_start,
+            line: self.start_line,
+            column: self.start_column,
         };
 
         self.tokens
@@ -194,7 +200,9 @@ impl Lexer {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
-                self.line_start += 1;
+                self.advance();
+                self.line_start = self.current;
+                continue;
             }
             self.advance();
         }
@@ -207,7 +215,7 @@ impl Lexer {
                     start: self.start,
                     end: self.current,
                     line: self.line,
-                    column: self.start - self.line_start,
+                    column: self.start_column,
                 },
             ));
 

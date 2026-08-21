@@ -4,9 +4,9 @@
 
 The language already has a parser and interpreter for core statements and expressions, but several parts are still incomplete or intentionally minimal.
 
-- Loop syntax is present in the parser, but execution support is limited.
-- Function and class support exists in the language surface, but runtime behavior is still evolving.
-- The environment currently uses a simple scope model and does not yet support full enclosing-scope traversal for every use case.
+- `while` and `for` loops support the current core execution model, but loop control statements such as `break` and `continue` are not implemented.
+- Function and class declarations, calls, closures, instance methods, and instance fields are supported; inheritance and `super` are not implemented.
+- The environment supports enclosing-scope traversal, while resolver output is currently used for validation rather than optimized lexical-distance lookup.
 - There is no standard library beyond the small native surface.
 - Arrays, objects, and richer composite types are not available yet.
 - String escape sequences and more advanced numeric literal forms are not implemented.

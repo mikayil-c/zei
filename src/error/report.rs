@@ -1,8 +1,8 @@
 #[derive(Clone, Debug)]
 pub struct Diagnostic {
-    pub kind: DiagnosticKind, // Error, Warning, Note.
-    pub message: String,      // Error message
-    pub span: Span,           // Range in source code.
+    pub kind: DiagnosticKind,
+    pub message: String, // Error message
+    pub span: Span,      // Range in source code.
 }
 
 impl Diagnostic {
@@ -18,8 +18,6 @@ impl Diagnostic {
 #[derive(Clone, Debug, PartialEq)]
 pub enum DiagnosticKind {
     Error,
-    Warning,
-    Note,
 }
 
 // Holding information about where exactly is a Token.
