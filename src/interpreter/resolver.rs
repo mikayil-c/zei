@@ -151,6 +151,14 @@ impl<'a> Resolver<'a> {
                 self.resolve_expr(right)
             }
             Expr::This { keyword } => self.resolve_local(expr, keyword),
+            Expr::Set {
+                object,
+                name: _,
+                value,
+            } => {
+                self.resolve_expr(value)?;
+                self.resolve_expr(object)
+            }
             Expr::Unary { operator: _, right } => self.resolve_expr(right),
             Expr::Variable { name } => {
                 if let Some(scope) = self.scopes.last() {

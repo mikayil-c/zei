@@ -351,6 +351,27 @@ impl Interpreter {
                     })),
                 }
             }
+            Expr::Set {
+                object,
+                name,
+                value,
+            } => {
+                let object_value = self.evaluate(object)?;
+                let evaluated = self.evaluate(value)?;
+
+                if let Value::Instance(instance) = object_value {
+                    instance
+                        .borrow_mut()
+                        .set(name.lexeme.to_string(), evaluated.clone());
+                    Ok(evaluated)
+                } else {
+                    Err(ExecutionError::Error(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Only instances have fields.".to_string(),
+                        span: name.span.clone(),
+                    }))
+                }
+            }
             Expr::Assign { name, value } => {
                 let evaluated = self.evaluate(value)?;
 

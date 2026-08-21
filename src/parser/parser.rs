@@ -323,6 +323,12 @@ impl Parser {
                     name: name.clone(),
                     value: Box::new(value),
                 });
+            } else if let Expr::Get { object, name } = expr {
+                return Ok(Expr::Set {
+                    object,
+                    name,
+                    value: Box::new(value),
+                });
             } else {
                 return Err(self.error(&equals, "Invalid assignment target."));
             }

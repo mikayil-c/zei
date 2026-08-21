@@ -136,4 +136,16 @@ mod tests {
 
         assert!(run_source(source).is_ok());
     }
+
+    #[test]
+    fn instance_fields_can_be_assigned_and_read() {
+        let source = r#"
+            class Counter {}
+            var counter = Counter();
+            counter.value = 3;
+            print counter.value;
+        "#;
+
+        assert!(run_source(source).is_ok());
+    }
 }
