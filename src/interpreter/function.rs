@@ -81,6 +81,8 @@ impl Callable for Function {
             Err(err) => match err {
                 ExecutionError::Return(value) => Ok(value),
                 ExecutionError::Error(diagnostic) => Err(ExecutionError::Error(diagnostic)),
+                ExecutionError::Break => Err(ExecutionError::Break),
+                ExecutionError::Continue => Err(ExecutionError::Continue),
             },
         }
     }
