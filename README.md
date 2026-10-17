@@ -35,7 +35,7 @@ The goal of this project is to create a simple, high-level programming language 
 
 - numbers, strings, booleans, and `nil`,
 - variables, assignment, blocks, and enclosing scopes,
-- `if`, `while`, and `for` statements,
+- `if`, `while`, and `for` statements with `break` and `continue`,
 - functions, returns, and closures,
 - classes, instances, methods, `this`, and instance fields,
 - arithmetic, comparison, equality, and logical operators,
@@ -46,5 +46,4 @@ The goal of this project is to create a simple, high-level programming language 
 
 - Arrays and object literals are not implemented.
 - Inheritance and `super` are not implemented.
-- `break` and `continue` are not implemented.
 - String escape sequences are not implemented.

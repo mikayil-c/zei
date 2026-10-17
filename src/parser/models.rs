@@ -55,12 +55,24 @@ pub enum Stmt {
     Block {
         statements: Vec<Stmt>,
     },
+    Break {
+        keyword: Token,
+    },
     Class {
         name: Token,
         methods: Vec<Stmt>,
     },
+    Continue {
+        keyword: Token,
+    },
     Expression {
         expression: Expr,
+    },
+    For {
+        initializer: Option<Box<Stmt>>,
+        condition: Expr,
+        increment: Option<Expr>,
+        body: Box<Stmt>,
     },
     Function {
         name: Token,

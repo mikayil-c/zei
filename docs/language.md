@@ -26,7 +26,7 @@ The execution pipeline is:
 
 - Literals: numbers, strings, booleans, and nil.
 - Expressions: unary, binary, grouping, variable references, variable and instance-field assignment, logical operators, calls, and property access.
-- Statements: expression statements, print statements, variable declarations, blocks, if/else, while, for, function declarations, return statements, and class declarations.
+- Statements: expression statements, print statements, variable declarations, blocks, if/else, while, for, break, continue, function declarations, return statements, and class declarations.
 - Runtime operations: arithmetic, comparisons, equality, string concatenation, truthiness, native `clock` calls, and instance method dispatch.
 
 ## Class and Function Structure

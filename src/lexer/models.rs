@@ -36,6 +36,7 @@ pub enum TokenType {
     // Keywords.
     And,
     Class,
+    Continue,
     Else,
     False,
     For,
@@ -45,6 +46,7 @@ pub enum TokenType {
     Or,
     Print,
     Return,
+    Break,
     Super,
     This,
     True,
@@ -59,6 +61,7 @@ pub fn get_keyword_token(text: &str) -> Option<TokenType> {
     match text {
         "and" => Some(TokenType::And),
         "class" => Some(TokenType::Class),
+        "continue" => Some(TokenType::Continue),
         "else" => Some(TokenType::Else),
         "false" => Some(TokenType::False),
         "for" => Some(TokenType::For),
@@ -68,6 +71,7 @@ pub fn get_keyword_token(text: &str) -> Option<TokenType> {
         "or" => Some(TokenType::Or),
         "print" => Some(TokenType::Print),
         "return" => Some(TokenType::Return),
+        "break" => Some(TokenType::Break),
         "super" => Some(TokenType::Super),
         "this" => Some(TokenType::This),
         "true" => Some(TokenType::True),

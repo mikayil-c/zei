@@ -37,6 +37,9 @@ impl Interpreter {
             match self.execute(&stmt) {
                 Ok(_) => (),
                 Err(execution_error) => match execution_error {
+                    ExecutionError::Break | ExecutionError::Continue => {
+                        had_error = true;
+                    }
                     ExecutionError::Error(diagnostic) => {
                         had_error = true;
                         report_diagnostics(source, &[diagnostic]);
@@ -52,6 +55,8 @@ impl Interpreter {
     // Statements produce side effects; expressions are evaluated for their values.
     fn execute(&mut self, stmt: &Stmt) -> Result<(), ExecutionError> {
         match stmt {
+            Stmt::Break { .. } => Err(ExecutionError::Break),
+            Stmt::Continue { .. } => Err(ExecutionError::Continue),
             Stmt::Expression { expression } => {
                 self.evaluate(&expression)?;
                 Ok(())
@@ -114,10 +119,50 @@ impl Interpreter {
             }
             Stmt::While { condition, body } => {
                 while self.evaluate(condition)?.is_truthy() {
-                    self.execute(body)?
+                    match self.execute(body) {
+                        Ok(()) => {}
+                        Err(ExecutionError::Continue) => continue,
+                        Err(ExecutionError::Break) => break,
+                        Err(other) => return Err(other),
+                    }
                 }
 
                 Ok(())
+            }
+            Stmt::For {
+                initializer,
+                condition,
+                increment,
+                body,
+            } => {
+                let loop_environment = Rc::new(RefCell::new(Environment::new_with_enclosing(
+                    Rc::clone(&self.environment),
+                )));
+                let previous = std::mem::replace(&mut self.environment, loop_environment);
+
+                let result = (|| -> Result<(), ExecutionError> {
+                    if let Some(initializer) = initializer {
+                        self.execute(initializer)?;
+                    }
+
+                    while self.evaluate(condition)?.is_truthy() {
+                        match self.execute(body) {
+                            Ok(()) => {}
+                            Err(ExecutionError::Continue) => {}
+                            Err(ExecutionError::Break) => break,
+                            Err(other) => return Err(other),
+                        }
+
+                        if let Some(increment) = increment {
+                            self.evaluate(increment)?;
+                        }
+                    }
+
+                    Ok(())
+                })();
+
+                self.environment = previous;
+                result
             }
             Stmt::Function { name, params, body } => {
                 let function = Function::new(
