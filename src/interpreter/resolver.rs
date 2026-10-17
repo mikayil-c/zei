@@ -10,6 +10,7 @@ pub struct Resolver {
     scopes: Vec<HashMap<String, bool>>,
     inside_function: bool,
     inside_class: bool,
+    loop_depth: usize,
 }
 
 impl Resolver {
@@ -18,6 +19,7 @@ impl Resolver {
             scopes: Vec::new(),
             inside_function: false,
             inside_class: false,
+            loop_depth: 0,
         }
     }
 
@@ -36,7 +38,49 @@ impl Resolver {
                 self.end_scope();
                 Ok(())
             }
+            Stmt::Break { keyword } => {
+                if self.loop_depth == 0 {
+                    return Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Can't use 'break' outside of a loop.".to_string(),
+                        span: keyword.span.clone(),
+                    });
+                }
+                Ok(())
+            }
+            Stmt::Continue { keyword } => {
+                if self.loop_depth == 0 {
+                    return Err(Diagnostic {
+                        kind: DiagnosticKind::Error,
+                        message: "Can't use 'continue' outside of a loop.".to_string(),
+                        span: keyword.span.clone(),
+                    });
+                }
+                Ok(())
+            }
             Stmt::Expression { expression } => self.resolve_expr(expression),
+            Stmt::For {
+                initializer,
+                condition,
+                increment,
+                body,
+            } => {
+                self.begin_scope();
+                if let Some(initializer) = initializer {
+                    self.resolve_stmt(initializer)?;
+                }
+
+                self.resolve_expr(condition)?;
+                if let Some(increment) = increment {
+                    self.resolve_expr(increment)?;
+                }
+
+                self.loop_depth += 1;
+                let body_result = self.resolve_stmt(body);
+                self.loop_depth -= 1;
+                self.end_scope();
+                body_result
+            }
             Stmt::Function { name, params, body } => {
                 let _ = self.declare(&name);
                 let _ = self.define(&name);
@@ -75,7 +119,10 @@ impl Resolver {
             }
             Stmt::While { condition, body } => {
                 self.resolve_expr(condition)?;
-                self.resolve_stmt(body)
+                self.loop_depth += 1;
+                let body_result = self.resolve_stmt(body);
+                self.loop_depth -= 1;
+                body_result
             }
             Stmt::Class { name, methods } => {
                 let _ = self.declare(name);

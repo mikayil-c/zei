@@ -108,6 +108,14 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
+        if self.match_token(&[TokenType::Break]) {
+            return self.break_statement();
+        }
+
+        if self.match_token(&[TokenType::Continue]) {
+            return self.continue_statement();
+        }
+
         if self.match_token(&[TokenType::For]) {
             return self.for_statement();
         }
@@ -143,9 +151,9 @@ impl Parser {
         let initializer = if self.match_token(&[TokenType::Semicolon]) {
             None
         } else if self.match_token(&[TokenType::Var]) {
-            Some(self.var_declaration()?)
+            Some(Box::new(self.var_declaration()?))
         } else {
-            Some(self.expression_statement()?)
+            Some(Box::new(self.expression_statement()?))
         };
 
         let condition = if !self.check(TokenType::Semicolon) {
@@ -170,28 +178,24 @@ impl Parser {
 
         let body = self.statement()?;
 
-        let body = if let Some(inc) = increment {
-            Stmt::Block {
-                statements: vec![body, Stmt::Expression { expression: inc }],
-            }
-        } else {
-            body
-        };
-
-        let body = Stmt::While {
+        Ok(Stmt::For {
+            initializer,
             condition,
+            increment,
             body: Box::new(body),
-        };
+        })
+    }
 
-        let body = if let Some(init) = initializer {
-            Stmt::Block {
-                statements: vec![init, body],
-            }
-        } else {
-            body
-        };
+    fn break_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expect ';' after 'break'.")?;
+        Ok(Stmt::Break { keyword })
+    }
 
-        Ok(body)
+    fn continue_statement(&mut self) -> Result<Stmt, ParseError> {
+        let keyword = self.previous().clone();
+        self.consume(TokenType::Semicolon, "Expect ';' after 'continue'.")?;
+        Ok(Stmt::Continue { keyword })
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParseError> {
@@ -597,6 +601,8 @@ impl Parser {
                 | TokenType::If
                 | TokenType::While
                 | TokenType::Print
+                | TokenType::Break
+                | TokenType::Continue
                 | TokenType::Return => {
                     return;
                 }

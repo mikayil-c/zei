@@ -1,6 +1,8 @@
 use crate::{error::report::Diagnostic, interpreter::value::Value};
 
 pub enum ExecutionError {
+    Break,
+    Continue,
     Error(Diagnostic),
     Return(Value),
 }

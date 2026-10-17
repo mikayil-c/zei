@@ -331,4 +331,44 @@ mod tests {
 
         assert!(run_source(source).is_ok());
     }
+
+    #[test]
+    fn while_loop_supports_break_and_continue() {
+        let source = r#"
+            var value = 0;
+            while (true) {
+                value = value + 1;
+                if (value == 2) continue;
+                if (value == 4) break;
+            }
+            print value;
+        "#;
+
+        assert!(run_source(source).is_ok());
+    }
+
+    #[test]
+    fn for_loop_supports_break_and_continue() {
+        let source = r#"
+            var total = 0;
+            for (var index = 0; index < 6; index = index + 1) {
+                if (index == 2) continue;
+                if (index == 5) break;
+                total = total + index;
+            }
+            print total;
+        "#;
+
+        assert!(run_source(source).is_ok());
+    }
+
+    #[test]
+    fn break_is_rejected_outside_a_loop() {
+        assert!(run_source("break;").is_err());
+    }
+
+    #[test]
+    fn continue_is_rejected_outside_a_loop() {
+        assert!(run_source("continue;").is_err());
+    }
 }
